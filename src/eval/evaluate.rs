@@ -1,7 +1,6 @@
 use std::{cmp, f64::EPSILON, ops::Deref, rc::Rc};
 
 use itertools::chain;
-use num_traits::Float;
 
 use crate::{bail, Context, EvalError, Function, Node, Op, Value};
 

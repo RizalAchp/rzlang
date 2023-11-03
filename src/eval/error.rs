@@ -160,7 +160,7 @@ impl Display for EvalError {
                 write!(f, "value of type {typename} cannot be used as index.")
             }
             EvalErrorKind::StackOverFlow(n) => {
-                write!(f, "stack overflow, call depth cannot exceed {n}")
+                write!(f, "stack overflow, call depth cannot exceed (default stack size: {n}), resize the stack with env 'RZ_STACK_SIZE'")
             }
             EvalErrorKind::InvalidFunctionCallArguments {
                 name,

@@ -1,5 +1,4 @@
 use itertools::Itertools;
-use num_traits::{Float, Zero};
 use std::fmt::Display;
 use std::rc::Rc;
 use std::{cmp, fmt};
@@ -38,6 +37,29 @@ impl Value {
         self.type_id().type_name()
     }
 
+    /// function Value::as_bool.
+    ///
+    /// get boolean / truthy or falsy the underlying type of value of [Value]
+    /// for example in for [List] or [Str] check is empty or not or if [Value::None] automicaly
+    /// return false
+    ///
+    /// # example
+    /// ```
+    /// use rzcalc::Value;
+    ///
+    /// assert!(Value::num(10).as_bool());
+    /// assert!(Value::Bool(true).as_bool());
+    /// assert!(!Value::Bool(false).as_bool());
+    /// assert!(!Value::num(0).as_bool());
+    /// assert!(Value::num(-12).as_bool());
+    ///
+    /// assert!(Value::list(vec![Value::None, Value::None]).as_bool());
+    /// assert!(!Value::list(vec![]).as_bool());
+    /// assert!(Value::str("hello").as_bool());
+    /// assert!(!Value::str("").as_bool());
+    /// assert!(!Value::None.as_bool());
+    ///
+    /// ```
     #[inline]
     pub fn as_bool(&self) -> bool {
         match self {
@@ -82,7 +104,6 @@ impl Value {
     pub const fn is_string(&self) -> bool {
         matches!(self, Self::Str(_))
     }
-    // string is an list, because string is just an list of char
     pub const fn is_list(&self) -> bool {
         matches!(self, Self::Str(_) | Self::List(_))
     }
@@ -120,28 +141,6 @@ impl Value {
             Self::Num(n) => Ok(*n),
             s => Err(ValueError::mismatch_type(s.type_id(), TypeId::Num)),
         }
-    }
-}
-
-impl<N: Into<Number>> From<N> for Value {
-    fn from(value: N) -> Self {
-        Self::num(value)
-    }
-}
-
-impl From<Str> for Value {
-    fn from(value: Str) -> Self {
-        Self::str(value)
-    }
-}
-impl From<&Str> for Value {
-    fn from(value: &Str) -> Self {
-        Self::str(value.clone())
-    }
-}
-impl From<List> for Value {
-    fn from(value: List) -> Self {
-        Self::List(value)
     }
 }
 
@@ -199,6 +198,34 @@ impl cmp::PartialOrd for Value {
         }
     }
 }
+
+impl<N: Into<Number>> From<N> for Value {
+    fn from(value: N) -> Self {
+        Self::num(value)
+    }
+}
+
+impl From<Str> for Value {
+    fn from(value: Str) -> Self {
+        Self::str(value)
+    }
+}
+impl From<&Str> for Value {
+    fn from(value: &Str) -> Self {
+        Self::str(value.clone())
+    }
+}
+impl From<List> for Value {
+    fn from(value: List) -> Self {
+        Self::List(value)
+    }
+}
+impl From<Func> for Value {
+    fn from(value: Func) -> Self {
+        Self::Func(value)
+    }
+}
+
 impl cmp::PartialEq for Value {
     fn eq(&self, other: &Value) -> bool {
         self.partial_cmp(other) == Some(cmp::Ordering::Equal)

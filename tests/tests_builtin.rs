@@ -57,3 +57,19 @@ fn builtin_binary() {
     check("hypot(69, 420)", Value::num(69f64.hypot(420f64)));
     check("atan2(69, 420)", Value::num(69f64.atan2(420f64)));
 }
+
+#[test]
+fn builtin_function_range() {
+    check(
+        "range(5)",
+        Value::list((0..5).map(Value::num).collect::<Vec<_>>()),
+    );
+    check(
+        "range(2, 5)",
+        Value::list((2..5).map(Value::num).collect::<Vec<_>>()),
+    );
+    check(
+        "range(1, 10, 2)",
+        Value::list((1..10).step_by(2).map(Value::num).collect::<Vec<_>>()),
+    );
+}

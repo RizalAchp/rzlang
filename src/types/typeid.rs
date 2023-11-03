@@ -2,6 +2,34 @@ use std::fmt::Display;
 
 #[repr(u8)]
 #[derive(Debug, Clone, Copy, Eq)]
+/// TypeId
+///
+/// type representation id for [Value](crate::Value) as enum for type checking.
+///
+/// for example [TypeId::Any] is always equal to any type id
+/// or [TypeId::Str] is equal to [TypeId::List] because string is just list of character
+///
+/// # example
+/// ```
+/// use rzcalc::TypeId;
+/// assert_eq!(TypeId::None, TypeId::None);
+///
+/// assert_eq!(TypeId::Any, TypeId::None);
+/// assert_eq!(TypeId::Any, TypeId::Bool);
+/// assert_eq!(TypeId::Any, TypeId::Num);
+/// assert_eq!(TypeId::Any, TypeId::List);
+/// assert_eq!(TypeId::Any, TypeId::Str);
+/// assert_eq!(TypeId::Any, TypeId::Func);
+/// assert_eq!(TypeId::Any, TypeId::Lamda);
+///
+/// assert_eq!(TypeId::Func, TypeId::Lamda);
+/// assert_eq!(TypeId::Str, TypeId::List);
+///
+/// assert_ne!(TypeId::Bool, TypeId::Num);
+/// assert_ne!(TypeId::None, TypeId::List);
+/// assert_ne!(TypeId::Func, TypeId::None);
+/// ```
+///
 pub enum TypeId {
     None,
     Any,
@@ -33,6 +61,7 @@ impl PartialEq for TypeId {
         match (self, other) {
             (_, Self::Any) | (Self::Any, _) => true,
             (Self::List, Self::Str) | (Self::Str, Self::List) => true,
+            (Self::Func, Self::Lamda) | (Self::Lamda, Self::Func) => true,
             (s, o) => core::mem::discriminant(s) == core::mem::discriminant(o),
         }
     }

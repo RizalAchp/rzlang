@@ -1,8 +1,6 @@
 use std::cmp;
 use std::f64::{self, consts};
 
-use num_traits::Float;
-
 use crate::types::callable::params;
 use crate::{Context, EvalError};
 

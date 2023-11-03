@@ -12,6 +12,7 @@ use crate::{
 pub struct Context<'a> {
     rng: WyRand,
     stack: Vec<Rc<str>>,
+    stack_size: usize,
     parent: Option<&'a Context<'a>>,
     scope: HashMap<Rc<str>, Value>,
 }
@@ -23,10 +24,17 @@ impl<'a> Default for Context<'a> {
 }
 
 impl<'a> Context<'a> {
+    const MAX_STACK_SIZE: Option<&str> = option_env!("RZ_STACK_SIZE");
+
     pub fn new() -> Self {
+        let stack_size = Self::MAX_STACK_SIZE
+            .unwrap_or("1024")
+            .parse::<usize>()
+            .unwrap_or(1024);
         Context {
             rng: WyRand::new(),
-            stack: vec![],
+            stack: Vec::with_capacity(stack_size),
+            stack_size,
             parent: None,
             scope: HashMap::new(),
         }
@@ -41,6 +49,7 @@ impl<'a> Context<'a> {
         Context {
             rng: ctx.rng.clone(),
             stack: ctx.stack.clone(),
+            stack_size: ctx.stack_size,
             parent: Some(ctx),
             scope: HashMap::new(),
         }
@@ -62,8 +71,8 @@ impl<'a> Context<'a> {
     }
 
     pub fn call(&mut self, fun: &dyn Callable, args: &[Value]) -> Result<Value, EvalError> {
-        if self.stack.len() >= 512 {
-            bail!(EvalError::stack_overflow(self.stack.len()));
+        if self.stack.len() >= self.stack_size {
+            bail!(EvalError::stack_overflow(self.stack_size));
         }
 
         self.stack

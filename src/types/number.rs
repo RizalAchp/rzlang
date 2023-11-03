@@ -10,16 +10,16 @@ impl Default for Number {
 }
 impl Number {
     #[inline]
-    pub fn real(self) -> f64 {
+    pub const fn real(self) -> f64 {
         match self {
             Number::Real(n) => n,
-            Number::Int(n) => n.to_f64().unwrap_or_default(),
+            Number::Int(n) => n as f64,
         }
     }
     #[inline]
-    pub fn int(self) -> i64 {
+    pub const fn int(self) -> i64 {
         match self {
-            Number::Real(n) => n.to_i64().unwrap_or_default(),
+            Number::Real(n) => n as i64,
             Number::Int(n) => n,
         }
     }
@@ -36,7 +36,6 @@ impl FromStr for Number {
     type Err = ParseNumberError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        use num_traits::Num;
         if s.chars().any(|x| x == '.' || x == 'e') {
             Ok(Number::Real(s.parse::<f64>().map_err(|err| {
                 ParseNumberError {
@@ -136,8 +135,6 @@ use std::{
     str::FromStr,
 };
 
-use num_traits::ToPrimitive;
-
 apply_ops!(Add::add(+), Sub::sub(-), Mul::mul(*), Div::div(/), Rem::rem(%));
 apply_ops_assign!(AddAssign::add_assign(+=), SubAssign::sub_assign(-=), MulAssign::mul_assign(*=), DivAssign::div_assign(/=), RemAssign::rem_assign(%=));
 
@@ -210,25 +207,23 @@ impl Debug for Number {
     }
 }
 
-impl num_traits::Zero for Number {
-    #[inline]
-    fn zero() -> Self {
+#[allow(unused)]
+impl Number {
+    pub const fn zero() -> Self {
         Self::Int(0)
     }
-    #[inline]
-    fn is_zero(&self) -> bool {
-        matches!(self, Number::Real(x) if x.is_zero()) || matches!(self, Number::Int(0))
+    pub fn is_zero(&self) -> bool {
+        match self {
+            Number::Real(x) if *x == 0.0 => true,
+            Number::Int(0) => true,
+            _ => false,
+        }
     }
-}
-impl num_traits::One for Number {
-    #[inline]
-    fn one() -> Self {
+    pub const fn one() -> Self {
         Self::Int(1)
     }
-}
-impl num_traits::Num for Number {
-    type FromStrRadixErr = ParseNumberError;
-    fn from_str_radix(str: &str, radix: u32) -> Result<Self, Self::FromStrRadixErr> {
+
+    fn from_str_radix(str: &str, radix: u32) -> Result<Self, ParseNumberError> {
         match i64::from_str_radix(str, radix) {
             Ok(ok) => Ok(Self::Int(ok)),
             Err(err) => Err(ParseNumberError {
@@ -237,190 +232,181 @@ impl num_traits::Num for Number {
             }),
         }
     }
-}
-impl num_traits::ToPrimitive for Number {
-    fn to_i64(&self) -> Option<i64> {
-        Some(self.int())
-    }
-    fn to_u64(&self) -> Option<u64> {
-        self.int().to_u64()
-    }
-    fn to_f64(&self) -> Option<f64> {
-        Some(self.real())
-    }
-}
-impl num_traits::NumCast for Number {
-    fn from<T: num_traits::ToPrimitive>(n: T) -> Option<Self> {
-        n.to_i64().map(Self::Int)
-    }
-}
 
-impl num_traits::Float for Number {
-    fn nan() -> Self {
-        Self::Real(f64::nan())
+    pub const fn nan() -> Self {
+        Self::Real(f64::NAN)
     }
-    fn infinity() -> Self {
-        Self::Real(f64::infinity())
+    pub const fn infinity() -> Self {
+        Self::Real(f64::INFINITY)
     }
-    fn neg_infinity() -> Self {
-        Self::Real(f64::neg_infinity())
+    pub const fn neg_infinity() -> Self {
+        Self::Real(f64::NEG_INFINITY)
     }
-    fn neg_zero() -> Self {
-        Self::Real(f64::neg_zero())
+    pub const fn neg_zero() -> Self {
+        Self::Real(-0.0)
     }
-    fn min_value() -> Self {
-        Self::Real(f64::min_value())
+    pub const fn min_value() -> Self {
+        Self::Real(f64::MIN)
     }
-    fn min_positive_value() -> Self {
-        Self::Real(f64::min_positive_value())
+    pub const fn min_positive_value() -> Self {
+        Self::Real(f64::MIN_POSITIVE)
     }
-    fn max_value() -> Self {
-        Self::Real(f64::max_value())
+    pub const fn max_value() -> Self {
+        Self::Real(f64::MAX)
     }
-    fn is_nan(self) -> bool {
+    pub fn is_nan(self) -> bool {
         self.real().is_nan()
     }
-    fn is_infinite(self) -> bool {
+    pub fn is_infinite(self) -> bool {
         self.real().is_infinite()
     }
-    fn is_finite(self) -> bool {
+    pub fn is_finite(self) -> bool {
         self.real().is_finite()
     }
-    fn is_normal(self) -> bool {
+    pub fn is_normal(self) -> bool {
         self.real().is_normal()
     }
-    fn classify(self) -> std::num::FpCategory {
+    pub fn classify(self) -> std::num::FpCategory {
         self.real().classify()
     }
-    fn floor(self) -> Self {
+    pub fn floor(self) -> Self {
         Self::Real(self.real().floor())
     }
-    fn ceil(self) -> Self {
+    pub fn ceil(self) -> Self {
         Self::Real(self.real().ceil())
     }
-    fn round(self) -> Self {
+    pub fn round(self) -> Self {
         Self::Real(self.real().round())
     }
-    fn trunc(self) -> Self {
+    pub fn trunc(self) -> Self {
         Self::Real(self.real().trunc())
     }
-    fn fract(self) -> Self {
+    pub fn fract(self) -> Self {
         Self::Real(self.real().fract())
     }
-    fn abs(self) -> Self {
+    pub fn abs(self) -> Self {
         Self::Real(self.real().abs())
     }
-    fn signum(self) -> Self {
+    pub fn signum(self) -> Self {
         Self::Real(self.real().signum())
     }
-    fn is_sign_positive(self) -> bool {
+    pub fn is_sign_positive(self) -> bool {
         self.real().is_sign_positive()
     }
-    fn is_sign_negative(self) -> bool {
+    pub fn is_sign_negative(self) -> bool {
         self.real().is_sign_negative()
     }
-    fn mul_add(self, a: Self, b: Self) -> Self {
+    pub fn mul_add(self, a: Self, b: Self) -> Self {
         Self::Real(f64::mul_add(self.real(), a.real(), b.real()))
     }
-    fn recip(self) -> Self {
+    pub fn recip(self) -> Self {
         Self::Real(self.real().recip())
     }
-    fn powi(self, n: i32) -> Self {
+    pub fn powi(self, n: i32) -> Self {
         Self::Real(self.real().powi(n))
     }
-    fn powf(self, n: Self) -> Self {
+    pub fn powf(self, n: Self) -> Self {
         Self::Real(self.real().powf(n.real()))
     }
-    fn sqrt(self) -> Self {
+    pub fn sqrt(self) -> Self {
         Self::Real(self.real().sqrt())
     }
-    fn exp(self) -> Self {
+    pub fn exp(self) -> Self {
         Self::Real(self.real().exp())
     }
-    fn exp2(self) -> Self {
+    pub fn exp2(self) -> Self {
         Self::Real(self.real().exp2())
     }
-    fn ln(self) -> Self {
+    pub fn ln(self) -> Self {
         Self::Real(self.real().ln())
     }
-    fn log(self, base: Self) -> Self {
+    pub fn log(self, base: Self) -> Self {
         Self::Real(self.real().log(base.real()))
     }
-    fn log2(self) -> Self {
+    pub fn log2(self) -> Self {
         Self::Real(self.real().log2())
     }
-    fn log10(self) -> Self {
+    pub fn log10(self) -> Self {
         Self::Real(self.real().log10())
     }
-    fn max(self, other: Self) -> Self {
+    pub fn max(self, other: Self) -> Self {
         Self::Real(self.real().max(other.real()))
     }
-    fn min(self, other: Self) -> Self {
+    pub fn min(self, other: Self) -> Self {
         Self::Real(self.real().min(other.real()))
     }
-    fn abs_sub(self, _other: Self) -> Self {
-        unimplemented!()
+    pub fn abs_sub(self, other: Self) -> Self {
+        #[allow(deprecated)]
+        Self::Real(self.real().abs_sub(other.real()))
     }
-    fn cbrt(self) -> Self {
+    pub fn cbrt(self) -> Self {
         Self::Real(self.real().cbrt())
     }
-    fn hypot(self, other: Self) -> Self {
+    pub fn hypot(self, other: Self) -> Self {
         Self::Real(self.real().hypot(other.real()))
     }
-    fn sin(self) -> Self {
+    pub fn sin(self) -> Self {
         Self::Real(self.real().sin())
     }
-    fn cos(self) -> Self {
+    pub fn cos(self) -> Self {
         Self::Real(self.real().cos())
     }
-    fn tan(self) -> Self {
+    pub fn tan(self) -> Self {
         Self::Real(self.real().tan())
     }
-    fn asin(self) -> Self {
+    pub fn asin(self) -> Self {
         Self::Real(self.real().asin())
     }
-    fn acos(self) -> Self {
+    pub fn acos(self) -> Self {
         Self::Real(self.real().acos())
     }
-    fn atan(self) -> Self {
+    pub fn atan(self) -> Self {
         Self::Real(self.real().atan())
     }
-    fn atan2(self, other: Self) -> Self {
+    pub fn atan2(self, other: Self) -> Self {
         Self::Real(self.real().atan2(other.real()))
     }
-    fn sin_cos(self) -> (Self, Self) {
+    pub fn sin_cos(self) -> (Self, Self) {
         let (s, c) = self.real().sin_cos();
         (Self::Real(s), Self::Real(c))
     }
-    fn exp_m1(self) -> Self {
+    pub fn exp_m1(self) -> Self {
         Self::Real(self.real().exp_m1())
     }
-    fn ln_1p(self) -> Self {
+    pub fn ln_1p(self) -> Self {
         Self::Real(self.real().ln_1p())
     }
-    fn sinh(self) -> Self {
+    pub fn sinh(self) -> Self {
         Self::Real(self.real().sinh())
     }
-    fn cosh(self) -> Self {
+    pub fn cosh(self) -> Self {
         Self::Real(self.real().cosh())
     }
-    fn tanh(self) -> Self {
+    pub fn tanh(self) -> Self {
         Self::Real(self.real().tanh())
     }
-    fn asinh(self) -> Self {
+    pub fn asinh(self) -> Self {
         Self::Real(self.real().asinh())
     }
-    fn acosh(self) -> Self {
+    pub fn acosh(self) -> Self {
         Self::Real(self.real().acosh())
     }
-    fn atanh(self) -> Self {
+    pub fn atanh(self) -> Self {
         Self::Real(self.real().atanh())
     }
-
-    fn integer_decode(self) -> (u64, i16, i8) {
-        unimplemented!()
-    }
 }
+
+macro_rules! impl_from_num {
+    ($($tp:ty),*) => {$(
+        impl From<$tp> for Number {
+            #[inline]
+            fn from(value: $tp) -> Self {
+                Number::Int(value as i64)
+            }
+        }
+    )*};
+}
+impl_from_num!(i8, u8, i16, u16, i32, u32, i64, u64, isize, usize);
 
 impl From<f64> for Number {
     #[inline]
@@ -428,10 +414,10 @@ impl From<f64> for Number {
         Number::Real(value)
     }
 }
-impl From<i64> for Number {
+impl From<f32> for Number {
     #[inline]
-    fn from(value: i64) -> Self {
-        Number::Int(value)
+    fn from(value: f32) -> Self {
+        Number::Real(value as f64)
     }
 }
 
