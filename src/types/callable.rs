@@ -66,10 +66,10 @@ where
     }
 }
 
-pub type BuiltinFunctionParams = &'static [(&'static str, super::ValueTypeId)];
+pub type BuiltinFunctionParams = &'static [(&'static str, super::TypeId)];
 
 macro_rules! params {
-    ($($arg:ident: $tparg:ident),* $(,)?) => {[$((stringify!($arg), $crate::ValueTypeId::$tparg)),*]};
+    ($($arg:ident: $tparg:ident),* $(,)?) => {[$((stringify!($arg), $crate::TypeId::$tparg)),*]};
 }
 pub(crate) use params;
 

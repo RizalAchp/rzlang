@@ -4,10 +4,51 @@ use std::f64::{self, consts};
 use num_traits::Float;
 
 use crate::types::callable::params;
-use crate::types::ValueError;
-use crate::{Context, EvalError, Value};
+use crate::{Context, EvalError};
 
-use super::number::Number;
+use super::{Number, Value, ValueError};
+
+#[rustfmt::skip]
+#[allow(unused)]
+pub fn context() -> Context<'static> {
+    let mut ctx = Context::new();
+
+    ctx.set_const("pi", consts::PI);
+    ctx.set_const("tau", consts::TAU);
+    ctx.set_const("e", consts::E);
+    ctx.set_const("nan", f64::NAN);
+    ctx.set_const("inf", f64::INFINITY);
+    ctx.set_const("neginf", f64::NEG_INFINITY);
+
+    ctx.set_unary("asin",  &params!(num: Num), |x| Ok(x.get_num()?.asin().into()   ));
+    ctx.set_unary("acos",  &params!(num: Num), |x| Ok(x.get_num()?.acos().into()   ));
+    ctx.set_unary("atan",  &params!(num: Num), |x| Ok(x.get_num()?.atan().into()   ));
+    ctx.set_unary("sin",   &params!(num: Num), |x| Ok(x.get_num()?.sin().into()    ));
+    ctx.set_unary("cos",   &params!(num: Num), |x| Ok(x.get_num()?.cos().into()    ));
+    ctx.set_unary("tan",   &params!(num: Num), |x| Ok(x.get_num()?.tan().into()    ));
+    ctx.set_unary("ln",    &params!(num: Num), |x| Ok(x.get_num()?.ln().into()     ));
+    ctx.set_unary("log10", &params!(num: Num), |x| Ok(x.get_num()?.log10().into()  ));
+    ctx.set_unary("log2",  &params!(num: Num), |x| Ok(x.get_num()?.log2().into()   ));
+    ctx.set_unary("abs",   &params!(num: Num), |x| Ok(x.get_num()?.abs().into()    ));
+    ctx.set_unary("ceil",  &params!(num: Num), |x| Ok(x.get_num()?.ceil().into()   ));
+    ctx.set_unary("floor", &params!(num: Num), |x| Ok(x.get_num()?.floor().into()  ));
+    ctx.set_unary("round", &params!(num: Num), |x| Ok(x.get_num()?.round().into()  ));
+    ctx.set_unary("sqrt",  &params!(num: Num), |x| Ok(x.get_num()?.sqrt().into()   ));
+    ctx.set_unary("exp",   &params!(num: Num), |x| Ok(x.get_num()?.exp().into()    ));
+    ctx.set_unary("float", &params!(num: Num), |x| Ok(x.get_num()?.real().into()   ));
+    ctx.set_unary("sign",  &params!(num: Num), |x| Ok(x.get_num()?.signum().into() ));
+
+    ctx.set_binary("min_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.min(y.get_num()?).into()               ));
+    ctx.set_binary("max_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.max(y.get_num()?).into()               ));
+    ctx.set_binary("powf",    &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powf(y.get_num()?).into()              ));
+    ctx.set_binary("pow",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powi(y.get_num()?.int() as i32).into() ));
+    ctx.set_binary("log",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.log(y.get_num()?).into()               ));
+    ctx.set_binary("hypot",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.hypot(y.get_num()?).into()             ));
+    ctx.set_binary("atan2",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.atan2(y.get_num()?).into()             ));
+
+    set_util(&mut ctx);
+    ctx
+}
 
 fn set_util(ctx: &mut Context) {
     for (key, ord) in &[
@@ -212,46 +253,4 @@ fn set_util(ctx: &mut Context) {
     //    let mut list = cast_list(&args[0])?.to_vec();
     //    Ok(Value::List(list.into()))
     //});
-}
-
-#[rustfmt::skip]
-#[allow(unused)]
-pub fn context() -> Context<'static> {
-    let mut ctx = Context::new();
-
-    ctx.set_const("pi", consts::PI);
-    ctx.set_const("tau", consts::TAU);
-    ctx.set_const("e", consts::E);
-    ctx.set_const("nan", f64::NAN);
-    ctx.set_const("inf", f64::INFINITY);
-    ctx.set_const("neginf", f64::NEG_INFINITY);
-
-    ctx.set_unary("asin",  &params!(num: Num), |x| Ok(x.get_num()?.asin().into()   ));
-    ctx.set_unary("acos",  &params!(num: Num), |x| Ok(x.get_num()?.acos().into()   ));
-    ctx.set_unary("atan",  &params!(num: Num), |x| Ok(x.get_num()?.atan().into()   ));
-    ctx.set_unary("sin",   &params!(num: Num), |x| Ok(x.get_num()?.sin().into()    ));
-    ctx.set_unary("cos",   &params!(num: Num), |x| Ok(x.get_num()?.cos().into()    ));
-    ctx.set_unary("tan",   &params!(num: Num), |x| Ok(x.get_num()?.tan().into()    ));
-    ctx.set_unary("ln",    &params!(num: Num), |x| Ok(x.get_num()?.ln().into()     ));
-    ctx.set_unary("log10", &params!(num: Num), |x| Ok(x.get_num()?.log10().into()  ));
-    ctx.set_unary("log2",  &params!(num: Num), |x| Ok(x.get_num()?.log2().into()   ));
-    ctx.set_unary("abs",   &params!(num: Num), |x| Ok(x.get_num()?.abs().into()    ));
-    ctx.set_unary("ceil",  &params!(num: Num), |x| Ok(x.get_num()?.ceil().into()   ));
-    ctx.set_unary("floor", &params!(num: Num), |x| Ok(x.get_num()?.floor().into()  ));
-    ctx.set_unary("round", &params!(num: Num), |x| Ok(x.get_num()?.round().into()  ));
-    ctx.set_unary("sqrt",  &params!(num: Num), |x| Ok(x.get_num()?.sqrt().into()   ));
-    ctx.set_unary("exp",   &params!(num: Num), |x| Ok(x.get_num()?.exp().into()    ));
-    ctx.set_unary("float", &params!(num: Num), |x| Ok(x.get_num()?.real().into()   ));
-    ctx.set_unary("sign",  &params!(num: Num), |x| Ok(x.get_num()?.signum().into() ));
-
-    ctx.set_binary("min_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.min(y.get_num()?).into()               ));
-    ctx.set_binary("max_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.max(y.get_num()?).into()               ));
-    ctx.set_binary("powf",    &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powf(y.get_num()?).into()              ));
-    ctx.set_binary("pow",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powi(y.get_num()?.int() as i32).into() ));
-    ctx.set_binary("log",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.log(y.get_num()?).into()               ));
-    ctx.set_binary("hypot",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.hypot(y.get_num()?).into()             ));
-    ctx.set_binary("atan2",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.atan2(y.get_num()?).into()             ));
-
-    set_util(&mut ctx);
-    ctx
 }

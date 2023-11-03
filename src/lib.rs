@@ -11,8 +11,7 @@ pub use eval::{Eval, EvalError};
 pub use lexer::{Lexer, Op, ReaderStream, Span, StrStream, Stream, Token, TokenType};
 pub use parser::{Node, ParseError, Parser};
 pub use types::{
-    builtin_context, BuiltinFunction, BuiltinFunctionWithParam, Callable, Function, Value,
-    ValueTypeId,
+    builtin_context, BuiltinFunction, BuiltinFunctionWithParam, Callable, Function, TypeId, Value,
 };
 
 macro_rules! bail {

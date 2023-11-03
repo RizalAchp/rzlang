@@ -1,24 +1,21 @@
 use std::{error::Error, fmt::Display};
 
-use crate::ValueTypeId;
+use crate::TypeId;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ValueErrorKind {
-    MismatchType {
-        got: ValueTypeId,
-        expect: ValueTypeId,
-    },
-    NotListAlikeType(ValueTypeId),
+    MismatchType { got: TypeId, expect: TypeId },
+    NotListAlikeType(TypeId),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValueError(ValueErrorKind);
 
 impl ValueError {
-    pub const fn mismatch_type(got: ValueTypeId, expect: ValueTypeId) -> Self {
+    pub const fn mismatch_type(got: TypeId, expect: TypeId) -> Self {
         Self(ValueErrorKind::MismatchType { got, expect })
     }
-    pub const fn not_list_alike(got: ValueTypeId) -> Self {
+    pub const fn not_list_alike(got: TypeId) -> Self {
         Self(ValueErrorKind::NotListAlikeType(got))
     }
 }

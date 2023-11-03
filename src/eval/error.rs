@@ -1,7 +1,7 @@
 use std::{fmt::Display, rc::Rc};
 
 use crate::{
-    types::{ValueError, ValueTypeId as TpId},
+    types::{TypeId as TpId, ValueError},
     Op, Value,
 };
 

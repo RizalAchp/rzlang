@@ -4,7 +4,7 @@ use nanorand::WyRand;
 
 use crate::{
     bail,
-    types::{BuiltinFunctionParams, ValueTypeId},
+    types::{BuiltinFunctionParams, TypeId},
     BuiltinFunction, BuiltinFunctionWithParam, Callable, EvalError, Value,
 };
 
@@ -109,7 +109,7 @@ impl<'a> Context<'a> {
     pub fn set_unary<F>(
         &mut self,
         key: &'static str,
-        args: &'static [(&'static str, ValueTypeId); 1],
+        args: &'static [(&'static str, TypeId); 1],
         func: F,
     ) where
         F: 'static,
@@ -121,7 +121,7 @@ impl<'a> Context<'a> {
     pub fn set_binary<F>(
         &mut self,
         key: &'static str,
-        args: &'static [(&'static str, ValueTypeId); 2],
+        args: &'static [(&'static str, TypeId); 2],
         func: F,
     ) where
         F: 'static,
