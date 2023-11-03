@@ -4,9 +4,6 @@ mod lexer;
 mod parser;
 mod types;
 
-#[cfg(test)]
-mod tests;
-
 pub use context::Context;
 pub use eval::{Eval, EvalError};
 pub use lexer::{Lexer, Op, ReaderStream, Span, StrStream, Stream, Token, TokenType};

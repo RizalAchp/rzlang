@@ -1,9 +1,6 @@
 mod stream;
 mod token;
 
-#[cfg(test)]
-mod tests;
-
 use std::{fs::File, io::Read, path::Path};
 
 pub use stream::{ReaderStream, StrStream, Stream};

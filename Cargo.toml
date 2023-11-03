@@ -1,5 +1,5 @@
 [package]
-name = "calculator"
+name = "rzcalc"
 version = "0.2.0"
 authors = ["rizalachp <rizal.ahmadp@gmail.com>"]
 edition = "2021"

@@ -1,5 +1,4 @@
-use super::{Op, StrStream, TokenType};
-use crate::{lexer::Lexer, Stream};
+use rzcalc::{Op, StrStream, TokenType, Lexer, Stream};
 
 #[test]
 fn test_stream() {
