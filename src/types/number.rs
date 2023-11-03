@@ -1,7 +1,12 @@
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy)]
 pub enum Number {
     Real(f64),
     Int(i64),
+}
+impl Default for Number {
+    fn default() -> Self {
+        Self::Int(0)
+    }
 }
 impl Number {
     #[inline]
@@ -16,6 +21,13 @@ impl Number {
         match self {
             Number::Real(n) => n.to_i64().unwrap_or_default(),
             Number::Int(n) => n,
+        }
+    }
+
+    pub const fn type_name(&self) -> &'static str {
+        match self {
+            Number::Real(_) => "real number",
+            Number::Int(_) => "interger number",
         }
     }
 }
@@ -114,7 +126,8 @@ macro_rules! apply_bit_ops_assign {
 }
 
 use std::{
-    fmt::Display,
+    fmt::{Debug, Display},
+    hash::Hash,
     ops::{
         Add, AddAssign, BitAnd, BitAndAssign, BitOr, BitOrAssign, BitXor, BitXorAssign, Div,
         DivAssign, Mul, MulAssign, Neg, Not, Rem, RemAssign, Shl, ShlAssign, Shr, ShrAssign, Sub,
@@ -153,6 +166,12 @@ impl PartialOrd for Number {
     }
 }
 
+impl Hash for Number {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.int().hash(state)
+    }
+}
+
 impl Neg for Number {
     type Output = Self;
     #[inline]
@@ -177,8 +196,16 @@ impl Not for Number {
 impl Display for Number {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Number::Real(n) => write!(f, "{n} (Real)"),
-            Number::Int(n) => write!(f, "{n} (Int)"),
+            Number::Real(n) => write!(f, "{n}"),
+            Number::Int(n) => write!(f, "{n}"),
+        }
+    }
+}
+impl Debug for Number {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Real(n) => f.debug_tuple("Real").field(n).finish(),
+            Self::Int(n) => f.debug_tuple("Int").field(n).finish(),
         }
     }
 }

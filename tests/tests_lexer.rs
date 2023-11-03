@@ -1,4 +1,4 @@
-use rzcalc::{Op, StrStream, TokenType, Lexer, Stream};
+use rzcalc::{Lexer, Op, StrStream, Stream, TokenType};
 
 #[test]
 fn test_stream() {

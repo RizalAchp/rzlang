@@ -97,7 +97,7 @@ The following Python-like utility functions are included.
 * `min(...)`: minimum of arguments.
 * `max(...)`: maximum of arguments.
 * `rand()`, `rand(stop)`, `rand(start, stop)`: random float (default range is 0.0 to 1.0).
-* `range(stop)`, `range(start, stop)`: list `[start, start+1, ..., stop-1, stop]`.
+* `range(stop)`, `range(start, stop)`, `range(start, stop, step)`: list `[start, start+1, ..., stop-1, stop]`.
 * `map(f, list)`: applies `f` to each element of `list`.
 * `sort(list)`: sort elements of `list`
 * `length(list)`: length of `list`

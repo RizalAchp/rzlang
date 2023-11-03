@@ -1,108 +1,13 @@
 use std::cmp;
 use std::f64::{self, consts};
-use std::rc::Rc;
 
 use num_traits::Float;
-use rand::random;
 
-use crate::{raise, Callable, Context, EvalError, Value};
+use crate::types::callable::params;
+use crate::types::ValueError;
+use crate::{Context, EvalError, Value};
 
 use super::number::Number;
-use super::BuiltinFunction;
-
-#[inline]
-fn set_const(ctx: &mut Context, key: &str, val: impl Into<Number>) {
-    ctx.set(key, Value::number(val))
-}
-
-#[inline]
-fn check_args_num<'a, const N: usize>(
-    name: &str,
-    args: &'a [Value],
-) -> Result<&'a [Value; N], EvalError> {
-    match args.get(..N).and_then(|x| x.try_into().ok()) {
-        Some(k) => Ok(k),
-        None => raise!(
-            EvalError,
-            "{name} expected {N} argument[s], {len} argument[s] given",
-            len = args.len(),
-        ),
-    }
-}
-
-#[inline]
-fn cast_function(arg: &Value) -> Result<&dyn Callable, EvalError> {
-    match arg {
-        Value::Function(fun) => Ok(&**fun),
-        _ => raise!(EvalError, "invalid cast of {} to function", arg.type_name()),
-    }
-}
-
-#[inline]
-fn cast_list(arg: &Value) -> Result<&[Value], EvalError> {
-    match arg {
-        Value::List(list) => Ok(list),
-        _ => raise!(EvalError, "invalid cast of {} to list", arg.type_name()),
-    }
-}
-
-#[inline]
-fn cast_string(arg: &Value) -> Result<String, EvalError> {
-    match arg {
-        Value::Str(s) => Ok(s.clone()),
-        _ => raise!(EvalError, "invalid cast of {} to string", arg.type_name()),
-    }
-}
-
-#[inline]
-fn cast_number(arg: &Value) -> Result<Number, EvalError> {
-    match arg {
-        Value::Number(x) => Ok(*x),
-        Value::Boolean(true) => Ok(Number::Real(1.0)),
-        Value::Boolean(false) => Ok(Number::Real(0.0)),
-        _ => raise!(EvalError, "invalid cast of {} to number", arg.type_name()),
-    }
-}
-
-#[inline]
-fn set_closure<F: 'static>(ctx: &mut Context, key: &str, fun: F)
-where
-    F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
-{
-    ctx.set(
-        key,
-        Value::Function(Rc::new(BuiltinFunction(key.to_string(), fun))),
-    );
-}
-
-#[inline]
-fn set_unary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
-where
-    F: Fn(Number) -> Number,
-{
-    let name = key.to_owned();
-    set_closure(ctx, key, move |args, _| {
-        let [x] = check_args_num::<1>(&name, args)?;
-        let x = cast_number(x)?;
-
-        Ok(Value::Number(fun(x)))
-    });
-}
-
-#[inline]
-fn set_binary<F: 'static>(ctx: &mut Context, key: &str, fun: F)
-where
-    F: Fn(Number, Number) -> Number,
-{
-    let name = key.to_owned();
-    set_closure(ctx, key, move |args, _| {
-        let [x, y] = check_args_num::<2>(&name, args)?;
-        let x = cast_number(x)?;
-        let y = cast_number(y)?;
-
-        Ok(Value::Number(fun(x, y)))
-    });
-}
 
 fn set_util(ctx: &mut Context) {
     for (key, ord) in &[
@@ -110,10 +15,11 @@ fn set_util(ctx: &mut Context) {
         ("min", cmp::Ordering::Greater),
     ] {
         let ord = *ord;
-
-        set_closure(ctx, key, move |args, _| {
+        ctx.set_func(key, move |args, _| {
             if args.is_empty() {
-                raise!(EvalError, "{} of empty sequence", key);
+                return Err(EvalError::any(format!(
+                    "calling funciton '{key}' with an empty sequence"
+                )));
             }
 
             let args = match args {
@@ -124,169 +30,182 @@ fn set_util(ctx: &mut Context) {
             let mut best = args[0].clone();
 
             for arg in args {
-                if let Some(x) = best.partial_cmp(arg) {
-                    if x == ord {
-                        best = arg.clone();
+                match best.partial_cmp(arg) {
+                    Some(x) if x == ord => best = arg.clone(),
+                    None => {
+                        return Err(EvalError::any(format!(
+                            "types '{}' and '{}' cannot be compared",
+                            best.type_id(),
+                            arg.type_id(),
+                        )))
                     }
-                } else {
-                    raise!(
-                        EvalError,
-                        "types '{}' and '{}' cannot be compared",
-                        best.type_name(),
-                        arg.type_name()
-                    );
+                    _ => {}
                 }
             }
 
             Ok(best)
         });
     }
-
-    set_closure(ctx, "rand", |args, _| {
-        let a = args.get(0).map(cast_number).transpose()?;
-        let b = args.get(1).map(cast_number).transpose()?;
-
-        let (a, b) = match (a, b) {
-            (Some(x), Some(y)) => (x, y),
-            (Some(x), None) => (Number::Real(0.0), x),
-            _ => (Number::Real(0.0), Number::Real(1.0)),
+    ctx.set_func("rand", move |args, ctx| {
+        let a = args.get(0).map(Value::get_num).transpose()?;
+        let b = args.get(1).map(Value::get_num).transpose()?;
+        let (start, end) = match (a, b) {
+            (Some(x), Some(y)) => (x.int(), y.int()),
+            (Some(x), None) => (0, x.int()),
+            _ => (0, 1),
         };
 
-        let out = (b - a) * Number::Real(random::<f64>()) + a;
-        Ok(Value::Number(out))
+        Ok(Value::num(nanorand::Rng::generate_range(
+            ctx.rng(),
+            start..=end,
+        )))
     });
 
-    set_closure(ctx, "range", |args, _| {
-        let a = args.get(0).map(cast_number).transpose()?;
-        let b = args.get(1).map(cast_number).transpose()?;
-        use Number::Real as R;
+    ctx.set_func("range", |args, _| {
+        use Number::Int as I;
+        let a = args.get(0).map(Value::get_num).transpose()?;
+        let b = args.get(1).map(Value::get_num).transpose()?;
+        let step = args
+            .get(2)
+            .map(|x| Value::get_num(x).unwrap_or(I(1)).int())
+            .unwrap_or(1);
 
-        let (a, b) = match (a, b) {
-            (Some(x), Some(y)) => (x, y),
-            (Some(x), None) => (R(0.0), x),
-            _ => (R(0.0), R(0.0)),
+        let (start, end) = match (a, b) {
+            (Some(x), Some(y)) => (x.int(), y.int()),
+            (Some(x), None) => (0, x.int()),
+            _ => (0, 0),
         };
 
-        let mut i = 0;
-        let mut list = vec![];
-
-        while a + R(i as f64) < b {
-            list.push(Value::Number(a + R(i as f64)));
-            i += 1;
-        }
-
-        Ok(Value::List(list.into()))
+        Ok(Value::List(
+            (start..end)
+                .step_by(step as usize)
+                .map(|x| Value::Num(Number::Int(x)))
+                .collect(),
+        ))
     });
 
-    set_closure(ctx, "map", |args, ctx| {
-        let [fun, list] = check_args_num::<2>("map", args)?;
-        let fun = cast_function(fun)?;
-        let list = cast_list(list)?;
+    ctx.set_func_with_args(
+        "map",
+        &params!(map_function: Func, listtype: List),
+        |args, ctx| {
+            let fun = args[0].get_func()?;
+            let list = args[1].get_list()?;
 
-        let out = list
-            .iter()
-            .map(|x| ctx.call(fun, &[x.clone()]))
-            .collect::<Result<Vec<_>, _>>()?;
+            let out = list
+                .iter()
+                .map(|x| ctx.call(&*fun, &[x.clone()]))
+                .collect::<Result<Vec<_>, _>>()?;
 
-        Ok(Value::List(out.into()))
-    });
+            Ok(Value::List(out.into()))
+        },
+    );
 
-    set_closure(ctx, "linspace", |args, _| {
-        let [lbnd, ubnd, steps] = check_args_num::<3>("linspace", args)?;
-        let lbnd = cast_number(lbnd)?;
-        let ubnd = cast_number(ubnd)?;
-        let steps = cast_number(steps)?;
-        let n = steps.floor().int();
+    ctx.set_func_with_args(
+        "linspace",
+        &params!(lbnd: Num, ubnd: Num, steps: Num),
+        |args, _| {
+            let lbnd = args[0].get_num()?;
+            let ubnd = args[1].get_num()?;
+            let steps = args[2].get_num()?.int();
+            if steps <= 2 {
+                return Err(EvalError::any(format!(
+                    "number of steps cannot be less than 2, got {}",
+                    steps
+                )));
+            }
 
-        if n <= 2 {
-            raise!(
-                EvalError,
-                "number of steps cannot be less than 2, got {}",
-                steps
-            );
-        }
+            use Number::Real as R;
 
-        use Number::Real as R;
-        let list = (0..n)
-            .map(|i| R((i as f64) / ((n - 1) as f64)))
-            .map(|v| (R(1.0) - v) * lbnd + v * ubnd)
-            .map(Value::Number)
-            .collect::<Vec<_>>();
+            Ok(Value::List(
+                (0..steps)
+                    .map(|i| R((i as f64) / ((steps - 1) as f64)))
+                    .map(|v| (R(1.0) - v) * lbnd + v * ubnd)
+                    .map(Value::Num)
+                    .collect(),
+            ))
+        },
+    );
 
-        Ok(Value::List(list.into()))
-    });
-
-    set_closure(ctx, "sort", |args, _| {
-        let [list] = check_args_num::<1>("sort", args)?;
-        let mut vec = cast_list(list)?.to_vec();
+    ctx.set_func_with_args("sort", &params!(listtype: List), |args, _| {
+        let mut vec = args[0].get_list()?.to_vec();
         vec.sort_by(|a, b| a.partial_cmp(b).unwrap_or(cmp::Ordering::Equal));
-
         Ok(Value::List(vec.into()))
     });
 
-    set_closure(ctx, "length", |args, _| {
-        let [arg] = check_args_num::<1>("length", args)?;
-        let n = cast_list(arg)
+    ctx.set_func_with_args("length", &params!(list_like_type: List), |args, _| {
+        let val = &args[0];
+        match val
+            .get_list()
             .map(|x| x.len())
-            .or_else(|_| cast_string(arg).map(|x| x.chars().count()))?;
-        Ok(Value::Number(Number::Real(n as f64)))
+            .or_else(|_| val.get_str().map(|x| x.chars().count()))
+        {
+            Ok(n) => Ok(Value::num(n as i64)),
+            Err(_) => Err(From::from(ValueError::not_list_alike(val.type_id()))),
+        }
     });
 
     macro_rules! impl_closure_print {
         ($($print:ident),*) => {$(
-            set_closure(ctx, stringify!($print), |args, _| {
-                let val = args.get(0).ok_or_else(|| EvalError("no arguments provided".to_owned()))?;
-                $print!("{val}");
-                Ok(val.clone())
+            ctx.set_func(stringify!($print), |args, _| {
+                if args.is_empty() {
+                    return Err(EvalError::any(format!(
+                        concat!("no arguments provided, function '", stringify!($print), "' requires an argument")
+                    )));
+                }
+                let len = args.len();
+                for (i, arg) in args.iter().enumerate() {
+                    $print!("{arg}{}", if (i != (len - 1)) {" "} else {""});
+                }
+                Ok(Value::None)
             });
         )*}
     }
     impl_closure_print!(print, println, eprint, eprintln);
-    set_closure(ctx, "debug", |args, _| {
-        let arg = args
-            .get(0)
-            .ok_or_else(|| EvalError("no arguments provided".to_owned()))?;
-        Ok(dbg!(arg).clone())
+
+    ctx.set_func_with_args("binary", &params!(num: Num, with_prefix: Any), |args, _| {
+        let num = args[0].get_num()?;
+        let with_prefix = args[1].as_bool();
+        Ok(Value::Str(
+            if with_prefix {
+                format!("{:#b}", num.int())
+            } else {
+                format!("{:b}", num.int())
+            }
+            .into(),
+        ))
     });
 
-    set_closure(ctx, "binary", |args, _| {
-        let arg = args
-            .get(0)
-            .ok_or_else(|| EvalError("no arguments provided".to_owned()))?;
-        let num = cast_number(arg)?;
-        let fmt = if args.get(1).is_some() {
-            format!("{:#b}", num.int())
-        } else {
-            format!("{:b}", num.int())
-        };
-        Ok(Value::Str(fmt))
+    ctx.set_func_with_args("octal", &params!(num: Num, with_prefix: Any), |args, _| {
+        let num = args[0].get_num()?;
+        let with_prefix = args[1].as_bool();
+        Ok(Value::Str(
+            if with_prefix {
+                format!("{:#o}", num.int())
+            } else {
+                format!("{:o}", num.int())
+            }
+            .into(),
+        ))
     });
 
-    set_closure(ctx, "octal", |args, _| {
-        let arg = args
-            .get(0)
-            .ok_or_else(|| EvalError("no arguments provided".to_owned()))?;
-        let num = cast_number(arg)?;
-        let fmt = if args.get(1).is_some() {
-            format!("{:#o}", num.int())
-        } else {
-            format!("{:o}", num.int())
-        };
-        Ok(Value::Str(fmt))
-    });
-
-    set_closure(ctx, "hex", |args, _| {
-        let arg = args
-            .get(0)
-            .ok_or_else(|| EvalError("no arguments provided".to_owned()))?;
-        let num = cast_number(arg)?;
-        let fmt = if args.get(1).is_some() {
-            format!("{:X}", num.int())
-        } else {
-            format!("{:x}", num.int())
-        };
-        Ok(Value::Str(fmt))
-    });
+    ctx.set_func_with_args(
+        "hex",
+        &params!(num: Num, upper_case: Any, with_prefix: Any),
+        |args, _| {
+            let num = args[0].get_num()?.int();
+            let upper_case = args[1].as_bool();
+            let with_prefix = args[2].as_bool();
+            Ok(Value::Str(
+                match (with_prefix, upper_case) {
+                    (true, true) => format!("{:#X}", num),
+                    (true, false) => format!("{:#x}", num),
+                    (false, true) => format!("{:X}", num),
+                    (false, false) => format!("{:x}", num),
+                }
+                .into(),
+            ))
+        },
+    );
 
     //set_closure(ctx, "sum", |args| {
     //    check_args_n("sum", args, 1)?;
@@ -295,48 +214,44 @@ fn set_util(ctx: &mut Context) {
     //});
 }
 
+#[rustfmt::skip]
 #[allow(unused)]
 pub fn context() -> Context<'static> {
     let mut ctx = Context::new();
 
-    {
-        let c = &mut ctx;
-        set_const(c, "pi", consts::PI);
-        set_const(c, "tau", consts::TAU);
-        set_const(c, "e", consts::E);
-        set_const(c, "nan", f64::NAN);
-        set_const(c, "inf", f64::INFINITY);
-        set_const(c, "neginf", f64::NEG_INFINITY);
+    ctx.set_const("pi", consts::PI);
+    ctx.set_const("tau", consts::TAU);
+    ctx.set_const("e", consts::E);
+    ctx.set_const("nan", f64::NAN);
+    ctx.set_const("inf", f64::INFINITY);
+    ctx.set_const("neginf", f64::NEG_INFINITY);
 
-        set_unary(c, "asin", |x| x.asin());
-        set_unary(c, "acos", |x| x.acos());
-        set_unary(c, "atan", |x| x.atan());
-        set_unary(c, "sin", |x| x.sin());
-        set_unary(c, "cos", |x| x.cos());
-        set_unary(c, "tan", |x| x.tan());
-        set_unary(c, "ln", |x| x.ln());
-        set_unary(c, "log10", |x| x.log10());
-        set_unary(c, "log2", |x| x.log2());
-        set_unary(c, "abs", |x| x.abs());
-        set_unary(c, "ceil", |x| x.ceil());
-        set_unary(c, "floor", |x| x.floor());
-        set_unary(c, "round", |x| x.round());
-        set_unary(c, "sqrt", |x| x.sqrt());
-        set_unary(c, "exp", |x| x.exp());
-        set_unary(c, "float", |x| x);
-        set_unary(c, "sign", |x| x.signum());
+    ctx.set_unary("asin",  &params!(num: Num), |x| Ok(x.get_num()?.asin().into()   ));
+    ctx.set_unary("acos",  &params!(num: Num), |x| Ok(x.get_num()?.acos().into()   ));
+    ctx.set_unary("atan",  &params!(num: Num), |x| Ok(x.get_num()?.atan().into()   ));
+    ctx.set_unary("sin",   &params!(num: Num), |x| Ok(x.get_num()?.sin().into()    ));
+    ctx.set_unary("cos",   &params!(num: Num), |x| Ok(x.get_num()?.cos().into()    ));
+    ctx.set_unary("tan",   &params!(num: Num), |x| Ok(x.get_num()?.tan().into()    ));
+    ctx.set_unary("ln",    &params!(num: Num), |x| Ok(x.get_num()?.ln().into()     ));
+    ctx.set_unary("log10", &params!(num: Num), |x| Ok(x.get_num()?.log10().into()  ));
+    ctx.set_unary("log2",  &params!(num: Num), |x| Ok(x.get_num()?.log2().into()   ));
+    ctx.set_unary("abs",   &params!(num: Num), |x| Ok(x.get_num()?.abs().into()    ));
+    ctx.set_unary("ceil",  &params!(num: Num), |x| Ok(x.get_num()?.ceil().into()   ));
+    ctx.set_unary("floor", &params!(num: Num), |x| Ok(x.get_num()?.floor().into()  ));
+    ctx.set_unary("round", &params!(num: Num), |x| Ok(x.get_num()?.round().into()  ));
+    ctx.set_unary("sqrt",  &params!(num: Num), |x| Ok(x.get_num()?.sqrt().into()   ));
+    ctx.set_unary("exp",   &params!(num: Num), |x| Ok(x.get_num()?.exp().into()    ));
+    ctx.set_unary("float", &params!(num: Num), |x| Ok(x.get_num()?.real().into()   ));
+    ctx.set_unary("sign",  &params!(num: Num), |x| Ok(x.get_num()?.signum().into() ));
 
-        set_binary(c, "min_num", |x, y| x.min(y));
-        set_binary(c, "max_num", |x, y| x.max(y));
+    ctx.set_binary("min_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.min(y.get_num()?).into()               ));
+    ctx.set_binary("max_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.max(y.get_num()?).into()               ));
+    ctx.set_binary("powf",    &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powf(y.get_num()?).into()              ));
+    ctx.set_binary("pow",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powi(y.get_num()?.int() as i32).into() ));
+    ctx.set_binary("log",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.log(y.get_num()?).into()               ));
+    ctx.set_binary("hypot",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.hypot(y.get_num()?).into()             ));
+    ctx.set_binary("atan2",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.atan2(y.get_num()?).into()             ));
 
-        set_binary(c, "powf", |x, y| x.powf(y));
-        set_binary(c, "pow", |x, y| x.powi(y.int() as i32));
-        set_binary(c, "log", |x, y| x.log(y));
-        set_binary(c, "hypot", |x, y| x.hypot(y));
-        set_binary(c, "atan2", |x, y| x.atan2(y));
-
-        set_util(c);
-    }
-
+    set_util(&mut ctx);
     ctx
 }

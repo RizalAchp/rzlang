@@ -4,18 +4,21 @@ mod node;
 use std::path::{Path, PathBuf};
 use std::rc::Rc;
 
-use crate::{raise, Value};
+use crate::types::Number;
+use crate::{bail, RzError, Value};
 use crate::{Lexer, Op, TokenType as Tok};
 
-pub use error::{ParseError, ParseResult};
+pub use error::ParseError;
 pub use node::Node;
+
+use error::ParseResult;
 
 pub struct Parser {
     pub lexer: Lexer,
     pub src: Option<PathBuf>,
 }
 impl Parser {
-    pub fn parse_file<P: AsRef<Path>>(p: P) -> std::io::Result<Self> {
+    pub fn parse_file<P: AsRef<Path>>(p: P) -> Result<Self, RzError> {
         let p = p.as_ref();
         let lexer = Lexer::from_file(p)?;
         Ok(Self {
@@ -30,29 +33,18 @@ impl Parser {
         }
     }
 
-    pub fn parse(mut self) -> ParseResult<Node> {
-        match self.parse_statement() {
-            Ok(ok) => Ok(ok),
-            Err(mut err) => {
-                if let Some(source) = self.src {
-                    err.source = Some(source.into());
-                    Err(err)
-                } else {
-                    Err(err)
-                }
-            }
-        }
+    pub fn parse(mut self) -> Result<Node, RzError> {
+        self.parse_statement().map_err(From::from)
     }
 }
 
 macro_rules! unexpected_prev_token {
     ($self:ident) => {{
         $self.lexer.prev_tok();
-        raise!(ParseError {
-            token: $self.lexer.peek_tok(),
-            span: $self.lexer.span_tok(),
-            source: None,
-        })
+        bail!(ParseError::unexpected_token(
+            $self.lexer.peek_tok(),
+            $self.lexer.span_tok()
+        ))
     }};
 }
 
@@ -81,16 +73,13 @@ impl Parser {
 
     fn parse_primitive(&mut self) -> ParseResult<Node> {
         let out = match self.lexer.next_tok() {
-            Tok::True => Node::Immediate(Value::Boolean(true)),
-            Tok::False => Node::Immediate(Value::Boolean(false)),
+            Tok::True => Node::Immediate(Value::Bool(true)),
+            Tok::False => Node::Immediate(Value::Bool(false)),
             Tok::Ident(name) => Node::Var(name),
-            Tok::Number(num) => {
-                if let Ok(x) = num.parse() {
-                    Node::Immediate(Value::Number(x))
-                } else {
-                    unexpected_prev_token!(self);
-                }
-            }
+            Tok::Number(num) => match num.parse::<Number>() {
+                Ok(num) => Node::Immediate(Value::Num(num)),
+                Err(err) => return Err(ParseError::parse_number(err, self.lexer.span_tok())),
+            },
             Tok::LeftParen => {
                 let expr = self.parse_expr()?;
                 self.expect_token(&Tok::RightParen, expr)?
