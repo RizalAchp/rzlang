@@ -1,5 +1,5 @@
 use core::f64::consts;
-use rzcalc::{builtin_context, Context, Eval, Parser, Value};
+use rzcalc_core::{builtin_context, Context, Eval, Parser, Value};
 
 thread_local!(static GLOBAL_CONTEXT: Context<'static> = builtin_context());
 

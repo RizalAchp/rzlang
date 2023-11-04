@@ -1,9 +1,16 @@
-[package]
-name = "rzcalc"
+[workspace.package]
 version = "0.2.0"
 authors = ["rizalachp <rizal.ahmadp@gmail.com>"]
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/RizalAchp/rzcalc"
+homepage = "https://github.com/RizalAchp/rzcalc"
+readme = "./README.md"
 
-[dependencies]
-itertools   = { version = "0.11" }
-nanorand = "0.7.0"
+
+[workspace]
+resolver = "2"
+members = [
+    "rzcalc-core",
+    "rzcalc"
+] 

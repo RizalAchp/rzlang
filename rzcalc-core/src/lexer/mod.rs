@@ -133,6 +133,7 @@ impl Lexer {
             b'^' => TokenType::Operator(Op::BitXor),
             b'>' => TokenType::Operator(Op::Gt),
             b'<' => TokenType::Operator(Op::Lt),
+            b'!' => TokenType::Operator(Op::Not),
             c => TokenType::Unknown(c),
         }
     }

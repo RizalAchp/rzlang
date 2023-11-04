@@ -45,7 +45,7 @@ impl Value {
     ///
     /// # example
     /// ```
-    /// use rzcalc::Value;
+    /// use rzcalc_core::Value;
     ///
     /// assert!(Value::num(10).as_bool());
     /// assert!(Value::Bool(true).as_bool());

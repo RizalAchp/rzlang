@@ -156,8 +156,8 @@ impl Parser {
             }
 
             let cond = self.parse_expr()?;
-            let expr = self.parse_expr()?;
-            let rhs = self.expect_token(&Tok::Else, expr)?;
+            self.expect_token(&Tok::Else, ())?;
+            let rhs = self.parse_expr()?;
             lhs = Node::Cond(Rc::new(cond), Rc::new(lhs), Rc::new(rhs));
         }
     }

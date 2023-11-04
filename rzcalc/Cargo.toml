@@ -1,0 +1,10 @@
+[package]
+name = "rzcalc"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+rustyline = { version = "12.0.0", features = ["case_insensitive_history_search"] }
+rzcalc-core = { path = "../rzcalc-core" }

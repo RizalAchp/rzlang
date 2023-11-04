@@ -1,0 +1,57 @@
+#V2
+1 + 2
+1 + 2 / 20
+pi
+jiasd
+20 << 10
+1 << 10
+10 > 1
+1 > 10
+if 1 > 10 then 10 else 9
+1 > 10 if 
+10 if 10 > 1 else 5
+10 if 10 > 1
+if pi > 3.0
+if pi > 3.0 then 
+if pi > 3.0 then 10 else 10
+pi > 3.0 if 30 else 10
+if 30 
+if 30 30 else 10
+if 30 then
+if 30 then 10 else 10
+foo = pi > 3.0
+10 if foo else 30
+10 if foo else foo
+10 if foo else
+10 if foo 
+10 if foo else 10
+foo = pi > 3.0
+"anjay" if foo else "yahh"
+true if foo else none
+69 if !foo else 420
+69 if not foo else 420
+foo = pi > 3.0
+69 if not foo else 420
+square
+sqrt
+square(n) = n*n
+square(10)
+square(20)
+square(30)
+square(69)
+sqrt(2)
+sqrt(100)
+sqrt(1)
+sqrt(20)
+sqrt(300)
+powi
+pow
+powf
+pow(10, 2)
+pow(10, 30)
+ispowtree(n) = n > 0 && (1162261467 % n) == 0
+ispowtree(3)
+ispowtree(9)
+ispowtree(2)
+ispowtree(4)
+ispowtree(8)

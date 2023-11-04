@@ -11,7 +11,7 @@ use std::fmt::Display;
 ///
 /// # example
 /// ```
-/// use rzcalc::TypeId;
+/// use rzcalc_core::TypeId;
 /// assert_eq!(TypeId::None, TypeId::None);
 ///
 /// assert_eq!(TypeId::Any, TypeId::None);
