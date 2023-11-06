@@ -1,104 +1,82 @@
-use std::{
-    fs::File,
-    io::{BufReader, Bytes, Read},
-    iter::Peekable,
-    path::Path,
-    str::Bytes as StrBytes,
-};
+use std::{iter::Peekable, rc::Rc, str::Chars};
 
-pub trait Stream {
-    const EOF: u8 = b'\0';
+pub struct CharStream<'s> {
+    pub(super) row: usize,
+    pub(super) col: usize,
+    pub(super) index: usize,
+    pub(super) content: &'s str,
+    pub(super) iter: Peekable<Chars<'s>>,
+}
 
-    fn index(&self) -> usize;
-    fn peek(&mut self) -> Option<u8>;
-    fn next(&mut self) -> Option<u8>;
+impl CharStream<'_> {
+    pub const EOF: char = '\0';
+
+    pub fn new<'s>(string: &'s str) -> CharStream<'s> {
+        CharStream::<'s> {
+            row: 0,
+            col: 0,
+            index: 0,
+            content: string,
+            iter: string.chars().peekable(),
+        }
+    }
 
     #[inline]
-    fn next_if<F>(&mut self, pred: F) -> Option<u8>
+    pub fn gpeek(&mut self) -> Option<char> {
+        self.iter.peek().copied()
+    }
+
+    #[inline]
+    pub fn gnext(&mut self) -> Option<char> {
+        self.index += 1;
+        match self.iter.next() {
+            Some(ok) => match ok {
+                '\n' => {
+                    self.row += 1;
+                    self.col = 0;
+                    Some(ok)
+                }
+                _ => {
+                    self.col += 1;
+                    Some(ok)
+                }
+            },
+            None => None,
+        }
+    }
+
+    pub fn col(&self) -> usize {
+        self.col
+    }
+    pub fn row(&self) -> usize {
+        self.row
+    }
+    pub fn current_line(&self) -> Rc<str> {
+        let bol = self.index.saturating_sub(self.col);
+        match self.content.get((bol + 1)..).and_then(|x| x.find('\n')) {
+            Some(eol) => Rc::from(&self.content[bol..eol]),
+            None => Rc::from(&self.content[bol..]),
+        }
+    }
+
+    #[inline]
+    pub fn next_if<F>(&mut self, pred: F) -> Option<char>
     where
-        F: FnOnce(u8) -> bool,
+        F: FnOnce(char) -> bool,
     {
-        if pred(self.peek()?) {
-            self.next()
+        if pred(self.gpeek()?) {
+            self.gnext()
         } else {
             None
         }
     }
 
     #[inline]
-    fn peek_char(&mut self) -> u8 {
-        self.peek().unwrap_or(Self::EOF)
+    pub fn peek_char(&mut self) -> char {
+        self.gpeek().unwrap_or(Self::EOF)
     }
     #[inline]
-    fn next_char(&mut self) -> u8 {
-        self.next().unwrap_or(Self::EOF)
-    }
-}
-
-pub struct ReaderStream<R: Read> {
-    pub(super) inner: Peekable<Bytes<BufReader<R>>>,
-    pub(super) index: usize,
-}
-impl<R: Read> ReaderStream<R> {
-    pub fn new(reader: R) -> ReaderStream<R> {
-        Self {
-            inner: BufReader::new(reader).bytes().peekable(),
-            index: 0,
-        }
-    }
-    pub fn from_file(file: impl AsRef<Path>) -> std::io::Result<ReaderStream<File>> {
-        let inner = BufReader::new(File::open(file)?).bytes().peekable();
-        Ok(ReaderStream::<File> { inner, index: 0 })
-    }
-}
-
-impl<R: Read> Stream for ReaderStream<R> {
-    fn peek(&mut self) -> Option<u8> {
-        match self.inner.peek()? {
-            Ok(ok) => Some(*ok),
-            Err(_) => None,
-        }
-    }
-    fn next(&mut self) -> Option<u8> {
-        self.index += 1;
-        match self.inner.next()? {
-            Ok(ok) => Some(ok),
-            Err(_) => None,
-        }
-    }
-
-    fn index(&self) -> usize {
-        self.index
-    }
-}
-
-pub struct StrStream<'s> {
-    pub(super) index: usize,
-    pub(super) inner: Peekable<StrBytes<'s>>,
-}
-
-impl StrStream<'_> {
-    pub fn new<'s>(string: &'s str) -> StrStream<'s> {
-        StrStream::<'s> {
-            index: 0,
-            inner: string.bytes().peekable(),
-        }
-    }
-}
-
-impl<'s> Stream for StrStream<'s> {
-    fn index(&self) -> usize {
-        self.index
-    }
-
-    #[inline]
-    fn peek(&mut self) -> Option<u8> {
-        self.inner.peek().copied()
-    }
-
-    #[inline]
-    fn next(&mut self) -> Option<u8> {
-        self.index += 1;
-        self.inner.next()
+    pub fn next_char(&mut self) -> char {
+        self.gnext().unwrap_or(Self::EOF)
     }
 }

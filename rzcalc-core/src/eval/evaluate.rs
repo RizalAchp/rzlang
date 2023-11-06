@@ -8,6 +8,7 @@ pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, 
     use Value::Bool as B;
     use Value::List as L;
     use Value::Num as N;
+    use Value::Str as S;
 
     if let Some(b) = match op {
         Op::Eq => Some(lhs == rhs),
@@ -24,11 +25,11 @@ pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, 
     #[rustfmt::skip]
     let out = match (op, lhs, rhs) {
         (Op::Add, L(x), L(y)) => {
-            let mut tmp = vec![];
-            tmp.extend_from_slice(x);
+            let mut tmp = x.to_vec();
             tmp.extend_from_slice(y);
             L(tmp.into())
         }
+        (Op::Add, S(x), S(y)) => S((x.to_string() + y).into()),
 
         (Op::Add,     N(x), N(y)) => N(*x + *y),
         (Op::Sub,     N(x), N(y)) => N(*x - *y),

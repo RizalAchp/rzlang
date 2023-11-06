@@ -1,18 +1,18 @@
-use rzcalc_core::{Lexer, Op, StrStream, Stream, TokenType};
+use rzcalc_core::{CharStream, Lexer, Op, TokenType};
 
 #[test]
 fn test_stream() {
     let line = "abc";
-    let mut stream = StrStream::new(line);
+    let mut stream = CharStream::new(line);
 
-    assert_eq!(stream.peek_char(), b'a');
-    assert_eq!(stream.next_char(), b'a');
-    assert_eq!(stream.peek_char(), b'b');
-    assert_eq!(stream.next_char(), b'b');
-    assert_eq!(stream.peek_char(), b'c');
-    assert_eq!(stream.next_char(), b'c');
-    assert_eq!(stream.peek_char(), b'\0');
-    assert_eq!(stream.next_char(), b'\0');
+    assert_eq!(stream.peek_char(), 'a');
+    assert_eq!(stream.next_char(), 'a');
+    assert_eq!(stream.peek_char(), 'b');
+    assert_eq!(stream.next_char(), 'b');
+    assert_eq!(stream.peek_char(), 'c');
+    assert_eq!(stream.next_char(), 'c');
+    assert_eq!(stream.peek_char(), '\0');
+    assert_eq!(stream.next_char(), '\0');
 }
 
 fn test_match(string: &str, tokens: impl IntoIterator<Item = TokenType>) {
@@ -65,7 +65,7 @@ fn test_tokens() {
         TokenType::Assign,
         TokenType::Arrow,
         TokenType::Colon,
-        TokenType::Unknown(b'?'),
+        TokenType::Unknown('?'),
     ];
 
     test_match(string, tokens);
@@ -116,7 +116,7 @@ fn test_basic() {
         TokenType::LeftParen,
         TokenType::Ident("a".into()),
         TokenType::Comma,
-        TokenType::Unknown(b'~'),
+        TokenType::Unknown('~'),
         TokenType::RightParen,
     ];
 

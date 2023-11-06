@@ -1,11 +1,10 @@
-mod builtin;
 mod callable;
 mod error;
 mod number;
 mod typeid;
 mod value;
 
-pub use builtin::context as builtin_context;
+pub(crate) use callable::params;
 pub use callable::{
     BuiltinFunction, BuiltinFunctionParams, BuiltinFunctionWithParam, Callable, Function,
 };

@@ -32,18 +32,26 @@ impl Parser {
             src: None,
         }
     }
-
     pub fn parse(mut self) -> Result<Node, RzError> {
         self.parse_statement().map_err(From::from)
     }
 }
 
 macro_rules! unexpected_prev_token {
-    ($self:ident) => {{
+    ($self:ident, $($desc:tt)*) => {{
         $self.lexer.prev_tok();
         bail!(ParseError::unexpected_token(
-            $self.lexer.peek_tok(),
-            $self.lexer.span_tok()
+            $self.lexer.get_peek().cloned().unwrap_or_default(),
+            format!($($desc)*)
+        ))
+    }};
+}
+macro_rules! required_ident {
+    ($self:ident, $got:expr) => {{
+        $self.lexer.prev_tok();
+        bail!(ParseError::require_ident_but_got(
+            $self.lexer.loc_tok().clone(),
+            $got,
         ))
     }};
 }
@@ -52,7 +60,7 @@ impl Parser {
     #[inline]
     fn expect_token<D>(&mut self, token: &Tok, default: D) -> ParseResult<D> {
         if self.lexer.next_tok() != *token {
-            unexpected_prev_token!(self);
+            unexpected_prev_token!(self, "expected token '{token}'");
         }
         Ok(default)
     }
@@ -78,8 +86,9 @@ impl Parser {
             Tok::Ident(name) => Node::Var(name),
             Tok::Number(num) => match num.parse::<Number>() {
                 Ok(num) => Node::Immediate(Value::Num(num)),
-                Err(err) => return Err(ParseError::parse_number(err, self.lexer.span_tok())),
+                Err(err) => return Err(ParseError::parse_number(err, self.lexer.loc_tok())),
             },
+            Tok::Str(s) => Node::Immediate(Value::Str(s)),
             Tok::LeftParen => {
                 let expr = self.parse_expr()?;
                 self.expect_token(&Tok::RightParen, expr)?
@@ -88,7 +97,10 @@ impl Parser {
                 let args = self.parse_list(&Tok::RightBracket)?;
                 Node::List(args)
             }
-            _ => unexpected_prev_token!(self),
+            _ => unexpected_prev_token!(
+                self,
+                "expected primitive type like [boolean, number, string, or list]"
+            ),
         };
 
         Ok(out)
@@ -177,7 +189,6 @@ impl Parser {
                 let body = self.parse_expr()?;
                 Node::Lambda(args, Rc::new(body))
             }
-
             // Case 2: () => body
             (Tok::LeftParen, Tok::RightParen, Tok::Arrow, _) => {
                 self.lexer.prev_tok();
@@ -185,39 +196,32 @@ impl Parser {
                 let body = self.parse_expr()?;
                 Node::Lambda(args, Rc::new(body))
             }
-
             // Case 3: (x) => body
             (Tok::LeftParen, Tok::Ident(x), Tok::RightParen, Tok::Arrow) => {
                 let args = vec![x];
                 let body = self.parse_expr()?;
                 Node::Lambda(args, Rc::new(body))
             }
-
             // Case 4: (x, y, z) => body
             (Tok::LeftParen, Tok::Ident(x), Tok::Comma, Tok::Ident(y)) => {
                 let mut args = vec![x, y];
-
                 loop {
                     match self.lexer.next_tok() {
                         Tok::Comma => (),
                         Tok::RightParen => break,
-                        _ => unexpected_prev_token!(self),
+                        _ => unexpected_prev_token!(self, "expected comma or closing paren params"),
                     };
-
                     match self.lexer.next_tok() {
                         Tok::Ident(x) => args.push(x),
-                        _ => unexpected_prev_token!(self),
+                        _ => unexpected_prev_token!(self, "expected ident for params"),
                     }
                 }
-
                 if self.lexer.next_tok() != Tok::Arrow {
-                    unexpected_prev_token!(self);
+                    unexpected_prev_token!(self, "expected an '=>' (arrow) after definition");
                 }
-
                 let body = self.parse_expr()?;
                 Node::Lambda(args, Rc::new(body))
             }
-
             _ => {
                 self.lexer.prev_tok();
                 self.lexer.prev_tok();
@@ -245,23 +249,20 @@ impl Parser {
             (Node::Apply(lhs, args), Tok::Assign) => {
                 let var = match lhs.get_var() {
                     Some(var) => var,
-                    None => unexpected_prev_token!(self),
+                    None => required_ident!(self, lhs),
                 };
-
                 let mut params = vec![];
-
                 for arg in args {
                     if let Node::Var(name) = arg {
                         params.push(name);
                     } else {
-                        unexpected_prev_token!(self);
+                        required_ident!(self, lhs)
                     }
                 }
-
                 let body = self.parse_statement()?;
                 Node::FunDef(var, params, Rc::new(body))
             }
-            _ => unexpected_prev_token!(self),
+            _ => unexpected_prev_token!(self, "expected statements"),
         })
     }
 }

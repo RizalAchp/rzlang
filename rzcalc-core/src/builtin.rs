@@ -1,10 +1,8 @@
 use std::cmp;
 use std::f64::{self, consts};
 
-use crate::types::callable::params;
+use crate::types::{params, Number, Value, ValueError};
 use crate::{Context, EvalError};
-
-use super::{Number, Value, ValueError};
 
 #[rustfmt::skip]
 #[allow(unused)]
@@ -201,7 +199,7 @@ fn set_util(ctx: &mut Context) {
     }
     impl_closure_print!(print, println, eprint, eprintln);
 
-    ctx.set_func_with_args("binary", &params!(num: Num, with_prefix: Any), |args, _| {
+    ctx.set_func_with_args("bin", &params!(num: Num, with_prefix: Any), |args, _| {
         let num = args[0].get_num()?;
         let with_prefix = args[1].as_bool();
         Ok(Value::Str(
@@ -214,7 +212,7 @@ fn set_util(ctx: &mut Context) {
         ))
     });
 
-    ctx.set_func_with_args("octal", &params!(num: Num, with_prefix: Any), |args, _| {
+    ctx.set_func_with_args("oct", &params!(num: Num, with_prefix: Any), |args, _| {
         let num = args[0].get_num()?;
         let with_prefix = args[1].as_bool();
         Ok(Value::Str(

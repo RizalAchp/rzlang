@@ -1,18 +1,20 @@
 use core::f64::consts;
 use rzcalc_core::{builtin_context, Context, Eval, Parser, Value};
 
-thread_local!(static GLOBAL_CONTEXT: Context<'static> = builtin_context());
+use std::rc::Rc;
+use std::sync::Mutex;
 
+thread_local!(static GLOBAL_CONTEXT: Rc<Mutex<Context<'static>>> = Rc::new(Mutex::new(builtin_context())));
 fn check(line: &str, expected: Value) {
     let root = Parser::parse_string(line)
         .parse()
         .expect("failed to parse string");
-    let mut ctx = GLOBAL_CONTEXT.with(|x| x.clone());
-    assert_eq!(
-        root.eval(&mut ctx),
-        Ok(expected.clone()),
-        "<expr: '{line}'> is not equal to {expected}"
-    );
+    let ctx_lock = GLOBAL_CONTEXT.with(|m| m.clone());
+    let mut ctx = ctx_lock.lock().unwrap();
+    match root.eval(&mut ctx) {
+        Ok(ok) => assert_eq!(ok, expected, "<expr: '{line}'> is not equal to {expected}"),
+        Err(err) => panic!("{err}"),
+    }
 }
 
 #[test]
@@ -72,4 +74,33 @@ fn builtin_function_range() {
         "range(1, 10, 2)",
         Value::list((1..10).step_by(2).map(Value::num).collect::<Vec<_>>()),
     );
+}
+
+#[test]
+fn builtin_function_hex() {
+    // hex function params => hex(number: number, upper_case: bool, with_prefix: bool)
+    check("hex(69, false, false)", Value::str("45"));
+    check("hex(69, false, true)", Value::str("0x45"));
+    check("hex(69, true, true)", Value::str("0x45"));
+    check("hex(420, false, false)", Value::str("1a4"));
+    check("hex(420, false, true)", Value::str("0x1a4"));
+    check("hex(420, true, true)", Value::str("0x1A4"));
+}
+
+#[test]
+fn builtin_function_bin() {
+    // bin function params => bin(number: number, with_prefix: bool)
+    check("bin(69, false)", Value::str("1000101"));
+    check("bin(69, true)", Value::str("0b1000101"));
+    check("bin(420, false)", Value::str("110100100"));
+    check("bin(420, true)", Value::str("0b110100100"));
+}
+
+#[test]
+fn builtin_function_oct() {
+    // oct function params => oct(number: number, with_prefix: bool)
+    check("oct(69, false)", Value::str("105"));
+    check("oct(69, true)", Value::str("0o105"));
+    check("oct(420, false)", Value::str("644"));
+    check("oct(420, true)", Value::str("0o644"));
 }

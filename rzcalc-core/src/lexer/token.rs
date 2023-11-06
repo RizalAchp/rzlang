@@ -1,5 +1,7 @@
 use std::{borrow::Cow, fmt::Display, rc::Rc};
 
+use crate::Loc;
+
 #[repr(i8)]
 #[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
 pub enum Op {
@@ -59,11 +61,11 @@ pub enum TokenType {
     Arrow,
     Colon,
     Operator(Op),
-    Unknown(u8),
+    Unknown(char),
     Number(Rc<str>),
-    Comment(Rc<str>),
-    LitStr(Rc<str>),
+    Str(Rc<str>),
     Ident(Rc<str>),
+    Comment(Rc<str>),
 }
 
 impl Op {
@@ -97,11 +99,8 @@ impl Display for Op {
     }
 }
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub struct Span(pub usize, pub usize);
-
 impl TokenType {
-    pub fn name(&self) -> Cow<'_, str> {
+    pub fn name(&self) -> Cow<'static, str> {
         match self {
             TokenType::LeftBracket => "[".into(),
             TokenType::RightBracket => "]".into(),
@@ -110,9 +109,6 @@ impl TokenType {
             TokenType::Comma => ",".into(),
             TokenType::Assign => "=".into(),
             TokenType::Arrow => "=>".into(),
-            TokenType::Number(x) => Cow::Owned(x.to_string()),
-            TokenType::Ident(x) => Cow::Owned(x.to_string()),
-            TokenType::Operator(x) => x.name().into(),
             TokenType::True => "true".into(),
             TokenType::False => "false".into(),
             TokenType::If => "if".into(),
@@ -120,9 +116,12 @@ impl TokenType {
             TokenType::Else => "else".into(),
             TokenType::End => "<end>".into(),
             TokenType::Colon => ":".into(),
-            TokenType::Unknown(n) => format!("<unknown token: '{n}'>").into(),
-            TokenType::Comment(s) => format!(r#"<comment: "{s}""#).into(),
-            TokenType::LitStr(s) => format!(r#"<literal: "{s}">"#).into(),
+            TokenType::Number(x) => format!("<number: '{x}'>").into(),
+            TokenType::Ident(x) => format!("<ident: '{x}'>").into(),
+            TokenType::Operator(x) => format!("<operator: '{x}'>").into(),
+            TokenType::Unknown(c) => format!("<unknown token: '{c}'>").into(),
+            TokenType::Str(s) => format!("<literal string: '{s}'>").into(),
+            TokenType::Comment(s) => format!("<comment: '{s}'>").into(),
         }
     }
 }
@@ -133,11 +132,30 @@ impl Display for TokenType {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Token {
+    pub loc: Loc,
     pub tok: TokenType,
-    pub span: Span,
 }
 #[inline]
-pub const fn token(tok: TokenType, span: Span) -> Token {
-    Token { tok, span }
+pub const fn token(tok: TokenType, loc: Loc) -> Token {
+    Token { tok, loc }
+}
+
+impl Default for Token {
+    fn default() -> Self {
+        Self {
+            loc: Loc::Repl {
+                span_col: crate::Span(0, 0),
+                line: "".into(),
+            },
+            tok: TokenType::End,
+        }
+    }
+}
+
+impl AsRef<Token> for Token {
+    fn as_ref(&self) -> &Token {
+        self
+    }
 }

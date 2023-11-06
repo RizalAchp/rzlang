@@ -1,17 +1,18 @@
 use rzcalc_core::{builtin_context, Context, Eval, Parser, Value};
 
-thread_local!(static GLOBAL_CONTEXT: Context<'static> = builtin_context());
-
+use std::rc::Rc;
+use std::sync::Mutex;
+thread_local!(static GLOBAL_CONTEXT: Rc<Mutex<Context<'static>>> = Rc::new(Mutex::new(builtin_context())));
 fn check(line: &str, expected: Value) {
     let root = Parser::parse_string(line)
         .parse()
         .expect("failed to parse string");
-    let mut ctx = GLOBAL_CONTEXT.with(|x| x.clone());
-    assert_eq!(
-        root.eval(&mut ctx),
-        Ok(expected.clone()),
-        "<expr: '{line}'> is not equal to {expected}"
-    );
+    let ctx_lock = GLOBAL_CONTEXT.with(|m| m.clone());
+    let mut ctx = ctx_lock.lock().unwrap();
+    match root.eval(&mut ctx) {
+        Ok(ok) => assert_eq!(ok, expected, "<expr: '{line}'> is not equal to {expected}"),
+        Err(err) => panic!("{err}"),
+    }
 }
 
 #[test]
@@ -95,4 +96,10 @@ fn test_lambda() {
     check("((x, y) => x + y)(1, 2)", Value::num(3));
 
     check("((x, y) => x * y)(3, 3)", Value::num(9));
+}
+
+#[test]
+fn test_str() {
+    check(r#""hello world""#, Value::str("hello world"));
+    check(r#""hello world" + " hehe""#, Value::str("hello world hehe"));
 }

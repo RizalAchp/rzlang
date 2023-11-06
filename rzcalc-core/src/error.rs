@@ -7,14 +7,16 @@ pub enum RzError {
     ParseError(ParseError),
     EvalError(EvalError),
     IoError(io::Error),
+    Any(String),
 }
 
 impl Display for RzError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             RzError::ParseError(err) => write!(f, "{err}"),
-            RzError::EvalError(err) => write!(f, "{err}"),
-            RzError::IoError(err) => write!(f, "{err}"),
+            RzError::EvalError(err) => write!(f, "ERROR: {err}"),
+            RzError::IoError(err) => write!(f, "ERROR: {err}"),
+            RzError::Any(any) => write!(f, "ERROR: {any}"),
         }
     }
 }
@@ -31,5 +33,11 @@ macro_rules! impl_error {
 impl_error! {
     ParseError => ParseError,
     EvalError => EvalError,
-    io::Error => IoError
+    io::Error => IoError,
+}
+
+impl From<Box<dyn std::error::Error>> for RzError {
+    fn from(value: Box<dyn std::error::Error>) -> Self {
+        Self::Any(value.to_string())
+    }
 }
