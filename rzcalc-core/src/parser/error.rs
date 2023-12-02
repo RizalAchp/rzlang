@@ -61,9 +61,12 @@ impl Display for ParseError {
                 line,
             } => {
                 let width = start + 2;
-                writeln!(f, "> {line}")?;
-                writeln!(f, "> {:>width$}{t}", ' ', t = "^".repeat(end - start))?;
-                f.write_str(&error_msg)
+                writeln!(
+                    f,
+                    "> {line}\r\n> {:>width$}{t}\r\n{error_msg}",
+                    ' ',
+                    t = "^".repeat(end - start)
+                )
             }
         }
     }

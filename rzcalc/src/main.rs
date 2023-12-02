@@ -1,66 +1,99 @@
-use rustyline::error::ReadlineError;
-use rzcalc_core::{self, builtin_context, Context, Eval, Node, Parser, RzError, Span, Value};
+mod highlight;
+mod repl;
 
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let mut ctx = builtin_context();
-    let mut rl = rustyline::DefaultEditor::new()?;
+use std::{path::PathBuf, process::exit};
 
-    if rl.load_history("history.txt").is_err() {
-        println!("No previous history.");
+use repl::{print_error, print_eval_error, print_value, Repl};
+use rzcalc_core::{self, builtin_context, Context, Eval, Parser, RzError};
+pub type Result<T> = ::std::result::Result<T, RzError>;
+
+const NAME: &str = env!("CARGO_PKG_NAME");
+const VERSION: &str = env!("CARGO_PKG_VERSION");
+
+fn exec_from_file(path: impl Into<PathBuf>, ctx: &mut Context<'_>) -> bool {
+    let path = path.into();
+    if !path.exists() {
+        eprintln!("path {} is not exists!", path.display());
+        return false;
     }
-
-    loop {
-        let readline = rl.readline(">> ");
-        match readline {
-            Ok(line) => {
-                rl.add_history_entry(line.as_str()).ok();
-                parse_line(line, &mut ctx);
-            }
-            Err(ReadlineError::Interrupted) => {
-                eprintln!("CTRL-C");
-                break;
-            }
-            Err(ReadlineError::Eof) => {
-                eprintln!("CTRL-D");
-                break;
-            }
+    match Parser::parse_file(path) {
+        Ok(parser) => match parser.parse() {
+            Ok(expr) => match expr.eval(ctx) {
+                Ok(value) => print_value(&expr, value),
+                Err(err) => {
+                    print_eval_error(&expr, err);
+                    return false;
+                }
+            },
             Err(err) => {
-                eprintln!("ERROR: {:?}", err);
-                break;
+                print_error(err);
+                return false;
+            }
+        },
+        Err(err) => {
+            print_error(err);
+            return false;
+        }
+    }
+    true
+}
+
+fn exec_from_string(s: String, ctx: &mut Context<'_>) -> bool {
+    let parser = Parser::parse_string(s);
+    match parser.parse() {
+        Ok(expr) => match expr.eval(ctx) {
+            Ok(value) => print_value(&expr, value),
+            Err(err) => {
+                print_eval_error(&expr, err);
+                return false;
+            }
+        },
+        Err(err) => {
+            print_error(err);
+            return false;
+        }
+    }
+    true
+}
+
+fn main() {
+    let mut args = std::env::args();
+    let program = args
+        .next()
+        .expect("args should have at lease one arguments");
+    let mut ctx = builtin_context();
+    if let Some(next) = args.next() {
+        match next.as_str() {
+            "-v" | "--version" => {
+                eprintln!("{NAME}-{VERSION}");
+                return;
+            }
+            "-h" | "--help" => {
+                eprintln!("USAGE: {program} [OPT:?]");
+                eprintln!("OPT:");
+                eprintln!("   -h,--help             show this text");
+                eprintln!("   -e,--eval <ARGS..>    evaluate the expresion given in <ARGS...>");
+                eprintln!("   <FILE>                evaluate content in file");
+                eprintln!();
+                eprintln!("if not any of OPT is given, program is running in repl mode");
+                return;
+            }
+            "-e" => {
+                let content = args.collect::<Vec<_>>().join(" ");
+                if !exec_from_string(content, &mut ctx) {
+                    exit(1);
+                }
+                return;
+            }
+            s => {
+                if !exec_from_file(s, &mut ctx) {
+                    exit(1);
+                }
+                return;
             }
         }
     }
-    rl.save_history("history.txt").map_err(From::from)
-}
 
-fn print_error(line: impl AsRef<str>, error: impl Into<RzError>) {
-    let line = line.as_ref();
-    eprintln!("ERROR: {line}");
-    match std::convert::Into::<RzError>::into(error) {
-        RzError::ParseError(err) => {
-            let Span(l, r) = err.span;
-            let w = 7 + l;
-            let repeat = r - l;
-            eprintln!("{:>w$}{}", ' ', "^".repeat(repeat));
-            eprintln!(" - {err}");
-        }
-        RzError::EvalError(err) => eprintln!("ERROR: EvalError - {err}"),
-        RzError::IoError(err) => eprintln!("ERROR: IoError - {err}"),
-    }
-}
-
-fn print_value(expr: Node, value: Value) {
-    println!("<expr> => {expr}");
-    println!("       => {value}");
-}
-
-fn parse_line(line: impl AsRef<str>, ctx: &mut Context<'_>) {
-    let line = line.as_ref();
-    match Parser::parse_string(line).parse() {
-        Ok(node) => match node.eval(ctx) {
-            Ok(value) => print_value(node, value),
-            Err(err) => print_error(line, err),
-        },
-        Err(err) => print_error(line, err),
-    }
+    let mut repl = Repl::new();
+    repl.start(&mut ctx)
 }

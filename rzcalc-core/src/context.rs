@@ -24,13 +24,13 @@ impl<'a> Default for Context<'a> {
 }
 
 impl<'a> Context<'a> {
-    const MAX_STACK_SIZE: Option<&str> = option_env!("RZ_STACK_SIZE");
+    const MAX_STACK_SIZE: Option<&'static str> = option_env!("RZ_STACK_SIZE");
 
     pub fn new() -> Self {
         let stack_size = Self::MAX_STACK_SIZE
-            .unwrap_or("1024")
+            .unwrap_or("512")
             .parse::<usize>()
-            .unwrap_or(1024);
+            .unwrap_or(512);
         Context {
             rng: WyRand::new(),
             stack: Vec::with_capacity(stack_size),
@@ -75,11 +75,10 @@ impl<'a> Context<'a> {
             bail!(EvalError::stack_overflow(self.stack_size));
         }
 
-        self.stack
-            .push(fun.name().unwrap_or("anonymous function").into());
+        let name = fun.name().unwrap_or("anonymous function").into();
 
+        self.stack.push(name);
         let result = fun.call(args, self);
-
         self.stack.pop();
         result
     }
