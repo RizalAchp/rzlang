@@ -1,7 +1,7 @@
 mod error;
 mod node;
 
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::types::Number;
@@ -13,24 +13,22 @@ pub use node::Node;
 
 use error::ParseResult;
 
-pub struct Parser {
-    pub lexer: Lexer,
+pub struct Parser<'s> {
+    pub lexer: Lexer<'s>,
     pub src: Option<PathBuf>,
 }
-impl Parser {
-    pub fn parse_file<P: AsRef<Path>>(p: P) -> Result<Self, RzError> {
-        let p = p.as_ref();
-        let lexer = Lexer::from_file(p)?;
-        Ok(Self {
-            lexer,
-            src: Some(p.to_path_buf()),
-        })
-    }
-    pub fn parse_string<S: AsRef<str>>(s: S) -> Self {
+impl<'s> Parser<'s> {
+    pub fn parse_string(s: &'s str) -> Self {
         Self {
             lexer: Lexer::from_string(s),
             src: None,
         }
+    }
+    pub fn parse_bytes(s: &'s [u8]) -> Result<Self, crate::RzError> {
+        Ok(Self {
+            lexer: Lexer::from_bytes(s)?,
+            src: None,
+        })
     }
     pub fn parse(mut self) -> Result<Node, RzError> {
         self.parse_statement().map_err(From::from)
@@ -56,7 +54,7 @@ macro_rules! required_ident {
     }};
 }
 
-impl Parser {
+impl Parser<'_> {
     #[inline]
     fn expect_token<D>(&mut self, token: &Tok, default: D) -> ParseResult<D> {
         if self.lexer.next_tok() != *token {

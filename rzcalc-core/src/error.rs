@@ -1,3 +1,4 @@
+use core::str::Utf8Error;
 use std::{fmt::Display, io};
 
 use crate::{EvalError, ParseError};
@@ -7,6 +8,7 @@ pub enum RzError {
     ParseError(ParseError),
     EvalError(EvalError),
     IoError(io::Error),
+    Utf8(Utf8Error),
     Any(String),
 }
 
@@ -17,6 +19,7 @@ impl Display for RzError {
             RzError::EvalError(err) => write!(f, "ERROR: {err}"),
             RzError::IoError(err) => write!(f, "ERROR: {err}"),
             RzError::Any(any) => write!(f, "ERROR: {any}"),
+            RzError::Utf8(err) => write!(f, "ERROR: {err}"),
         }
     }
 }
@@ -33,7 +36,9 @@ macro_rules! impl_error {
 impl_error! {
     ParseError => ParseError,
     EvalError => EvalError,
+    Utf8Error => Utf8,
     io::Error => IoError,
+    String => Any,
 }
 
 impl From<Box<dyn std::error::Error>> for RzError {

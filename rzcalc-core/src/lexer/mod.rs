@@ -8,65 +8,47 @@ pub use token::{token, Op, Token, TokenType};
 
 use crate::{Loc, Span};
 
-pub struct Lexer {
+pub struct Lexer<'s> {
     index: usize,
+    stream: CharStream<'s>,
+    file_path: Option<Rc<Path>>,
+    buffer: String,
     tokens: Vec<Token>,
 }
 
-impl Lexer {
-    pub fn new(mut stream: CharStream, file_path: Option<Rc<Path>>) -> Self {
-        let mut tokens = Vec::with_capacity(1024);
-        let mut buffer = String::with_capacity(1024);
-        while let Some(c) = stream.gpeek() {
-            if c.is_ascii_whitespace() {
-                stream.gnext();
-                continue;
-            }
-            let begin = stream.col();
-            let tok = Self::parse_token(&mut stream, &mut buffer);
-            let end = stream.col();
-            let span = Span(begin, end);
-            let loc = if let Some(p) = &file_path {
-                Loc::loc_file(p.clone(), stream.row(), span)
-            } else {
-                Loc::loc_repl(stream.current_line(), span)
-            };
-            tokens.push(token(tok, loc));
+impl<'s> Lexer<'s> {
+    pub fn new(stream: CharStream<'s>, file_path: Option<Rc<Path>>) -> Lexer<'s> {
+        let tokens = Vec::with_capacity(1024);
+        let buffer = String::with_capacity(1024);
+
+        Lexer {
+            index: 0,
+            buffer,
+            stream,
+            file_path,
+            tokens,
         }
-
-        let index = stream.col();
-        let span = Span(index, index + 1);
-        let loc = if let Some(p) = &file_path {
-            Loc::loc_file(p.clone(), stream.row(), span)
-        } else {
-            Loc::loc_repl(stream.current_line(), span)
-        };
-        tokens.push(token(TokenType::End, loc));
-
-        Lexer { index: 0, tokens }
     }
-
-    pub fn from_string<S: AsRef<str>>(string: S) -> Self {
-        Self::new(CharStream::new(string.as_ref()), None)
+    pub fn from_string(string: &'s str) -> Lexer<'s> {
+        Lexer::<'s>::new(CharStream::new(string), None)
     }
-    pub fn from_file<P: AsRef<Path>>(path: P) -> std::io::Result<Self> {
-        let path = path.as_ref();
-        let content = std::fs::read_to_string(path)?;
-        let stream = CharStream::new(&content);
-        Ok(Self::new(stream, Some(path.into())))
+    pub fn from_bytes(bytes: &'s [u8]) -> Result<Lexer<'s>, crate::RzError> {
+        let bytes = CharStream::<'s>::from_bytes(bytes)?;
+        Ok(Lexer::<'s>::new(bytes, None))
     }
 }
 const fn is_numeric(c: char) -> bool {
     c.is_ascii_digit()
         || c.is_ascii_hexdigit()
         || c == '.'
+        || c == '_'
         || c == 'x'
         || c == 'o'
         || c == 'b'
         || c == 'e'
 }
 
-impl Lexer {
+impl<'s> Lexer<'s> {
     #[inline]
     fn parse_str(s: impl AsRef<str>) -> TokenType {
         match s.as_ref() {
@@ -82,54 +64,56 @@ impl Lexer {
         }
     }
 
-    fn parse_token(stream: &mut CharStream, buffer: &mut String) -> TokenType {
-        let c = stream.peek_char();
-        buffer.clear();
-        if c.is_ascii_alphabetic() {
-            while let Some(ch) = stream.next_if(|u| u.is_ascii_alphanumeric() || u == '_') {
-                buffer.push(ch);
+    fn parse_token(&mut self) -> TokenType {
+        let c = self.stream.peek_char();
+        self.buffer.clear();
+        if c.is_alphabetic() {
+            while let Some(ch) = self.stream.next_if(|u| u.is_alphanumeric() || u == '_') {
+                self.buffer.push(ch);
             }
-            return Self::parse_str(buffer);
+            return Self::parse_str(&self.buffer);
         }
 
-        buffer.clear();
+        self.buffer.clear();
         if c.is_ascii_digit() || c == '.' {
-            while let Some(ch) = stream.next_if(is_numeric) {
-                buffer.push(ch);
+            while let Some(ch) = self.stream.next_if(is_numeric) {
+                if ch != '_' {
+                    self.buffer.push(ch);
+                }
             }
-            return TokenType::Number(buffer.clone().into());
+            return TokenType::Number(self.buffer.clone().into());
         }
 
-        stream.gnext();
+        self.stream.gnext();
         macro_rules! consume_ret {
-            ($s:ident, $tok:expr) => {{
+            ($s:expr, $tok:expr) => {{
                 $s.gnext();
                 return $tok;
             }};
         }
 
-        buffer.clear();
-        match (c, stream.peek_char()) {
-            ('&', '&') => consume_ret!(stream, TokenType::Operator(Op::And)),
-            ('|', '|') => consume_ret!(stream, TokenType::Operator(Op::Or)),
-            ('=', '=') => consume_ret!(stream, TokenType::Operator(Op::Eq)),
-            ('!', '=') => consume_ret!(stream, TokenType::Operator(Op::Neq)),
-            ('<', '=') => consume_ret!(stream, TokenType::Operator(Op::Lte)),
-            ('<', '<') => consume_ret!(stream, TokenType::Operator(Op::Shl)),
-            ('>', '=') => consume_ret!(stream, TokenType::Operator(Op::Gte)),
-            ('>', '>') => consume_ret!(stream, TokenType::Operator(Op::Shr)),
-            ('=', '>') => consume_ret!(stream, TokenType::Arrow),
+        self.buffer.clear();
+        match (c, self.stream.peek_char()) {
+            ('&', '&') => consume_ret!(self.stream, TokenType::Operator(Op::And)),
+            ('|', '|') => consume_ret!(self.stream, TokenType::Operator(Op::Or)),
+            ('=', '=') => consume_ret!(self.stream, TokenType::Operator(Op::Eq)),
+            ('!', '=') => consume_ret!(self.stream, TokenType::Operator(Op::Neq)),
+            ('<', '=') => consume_ret!(self.stream, TokenType::Operator(Op::Lte)),
+            ('<', '<') => consume_ret!(self.stream, TokenType::Operator(Op::Shl)),
+            ('>', '=') => consume_ret!(self.stream, TokenType::Operator(Op::Gte)),
+            ('>', '>') => consume_ret!(self.stream, TokenType::Operator(Op::Shr)),
+            ('=', '>') => consume_ret!(self.stream, TokenType::Arrow),
             ('/', '/') => {
-                stream.gnext();
-                while let Some(u) = stream.next_if(|x| matches!(x, '\n' | '\r')) {
-                    buffer.push(u);
+                self.stream.gnext();
+                while let Some(u) = self.stream.next_if(|x| matches!(x, '\n' | '\r')) {
+                    self.buffer.push(u);
                 }
-                return TokenType::Comment(buffer.clone().into());
+                return TokenType::Comment(self.buffer.clone().into());
             }
             _ => {}
         }
 
-        buffer.clear();
+        self.buffer.clear();
         match c {
             '[' => TokenType::LeftBracket,
             ']' => TokenType::RightBracket,
@@ -150,28 +134,54 @@ impl Lexer {
             '<' => TokenType::Operator(Op::Lt),
             '!' => TokenType::Operator(Op::Not),
             '"' => {
-                while let Some(c) = stream.next_if(|x| x != '\"') {
-                    buffer.push(c);
+                while let Some(c) = self.stream.next_if(|x| x != '\"') {
+                    self.buffer.push(c);
                 }
-                stream.gnext();
-                TokenType::Str(buffer.clone().into())
+                self.stream.gnext();
+                TokenType::Str(self.buffer.clone().into())
             }
             c => TokenType::Unknown(c),
         }
     }
+
+    pub fn next_impl(&mut self) {
+        while let Some(c) = self.stream.gpeek() {
+            if c.is_whitespace() {
+                self.stream.gnext();
+                continue;
+            }
+
+            let begin = self.stream.col();
+            let tok = self.parse_token();
+            let end = self.stream.col();
+            let span = Span(begin, end);
+
+            let loc = if let Some(p) = &self.file_path {
+                Loc::loc_file(p.clone(), self.stream.row(), span)
+            } else {
+                Loc::loc_repl(self.stream.current_line(), span)
+            };
+            self.tokens.push(token(tok, loc));
+            return;
+        }
+    }
+
     #[inline]
-    pub fn get_peek(&self) -> Option<&Token> {
+    pub fn get_peek(&mut self) -> Option<&Token> {
+        self.next_impl();
         self.tokens.get(self.index)
     }
 
     #[inline]
-    pub fn get_next(&mut self) -> Option<&Token> {
+    pub fn get_next(&mut self) -> Option<Token> {
+        self.next_impl();
+        let tok = self.tokens.get(self.index).cloned();
         self.index += 1;
-        let tok = self.get_peek();
         tok
     }
 
-    pub fn peek_tok(&self) -> TokenType {
+    pub fn peek_tok(&mut self) -> TokenType {
+        self.next_impl();
         self.tokens
             .get(self.index)
             .map(|x| x.tok.clone())

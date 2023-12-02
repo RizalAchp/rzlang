@@ -31,6 +31,17 @@ impl Number {
         }
     }
 }
+impl Number {
+    pub fn safe_div(self, other: Self) -> Self {
+        match (self, other) {
+            (Number::Int(x), Number::Int(y)) => match x.checked_div_euclid(y) {
+                Some(n) => Self::Int(n),
+                None => Self::Real(f64::INFINITY),
+            },
+            (x, y) => x / y,
+        }
+    }
+}
 
 impl FromStr for Number {
     type Err = ParseNumberError;

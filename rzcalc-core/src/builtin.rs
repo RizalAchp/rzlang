@@ -185,19 +185,35 @@ fn set_util(ctx: &mut Context) {
         ($($print:ident),*) => {$(
             ctx.set_func(stringify!($print), |args, _| {
                 if args.is_empty() {
-                    return Err(EvalError::any(format!(
+                    return Err(EvalError::any(
                         concat!("no arguments provided, function '", stringify!($print), "' requires an argument")
-                    )));
+                    ));
                 }
                 let len = args.len();
                 for (i, arg) in args.iter().enumerate() {
-                    $print!("{arg}{}", if (i != (len - 1)) {" "} else {""});
+                    $print!("{arg}{}", if i != (len - 1) {" "} else {""});
                 }
                 Ok(Value::None)
             });
         )*}
     }
     impl_closure_print!(print, println, eprint, eprintln);
+
+    ctx.set_func("dbg", |args, _| {
+        if args.is_empty() {
+            return Err(EvalError::any(concat!(
+                "no arguments provided, function '",
+                stringify!($print),
+                "' requires an argument"
+            )));
+        }
+        let len = args.len();
+        for (i, arg) in args.iter().enumerate() {
+            eprint!("{arg:?}{}", if i != (len - 1) { " " } else { "" });
+        }
+        eprintln!();
+        Ok(args.first().cloned().unwrap())
+    });
 
     ctx.set_func_with_args("bin", &params!(num: Num, with_prefix: Any), |args, _| {
         let num = args[0].get_num()?;

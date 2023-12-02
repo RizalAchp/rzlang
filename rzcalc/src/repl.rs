@@ -1,22 +1,18 @@
 //! In progress effort to implement a new cool REPL using termion and stuff
-use rzcalc_core::Context;
-use rzcalc_core::Eval;
-use rzcalc_core::EvalError;
-use rzcalc_core::Node;
-use rzcalc_core::Parser;
-use rzcalc_core::RzError;
-use rzcalc_core::Value;
-use std::io::{self, Write};
-use termion::clear;
-use termion::cursor;
+use rzcalc_core::{Context, Eval, EvalError, Node, Parser, RzError, Value};
+use std::io::{self, Stdout, Write};
 
-use termion::event::Key;
-use termion::input::TermRead;
-use termion::raw::IntoRawMode;
+use termion::{
+    clear, cursor,
+    event::{Event, Key},
+    input::TermRead,
+    raw::{IntoRawMode, RawTerminal},
+};
 
 use crate::highlight::{HighlightedNode, HighlightedValue};
 
 pub struct Repl {
+    quit: bool,
     buffer: Vec<char>,
     buffer_cursor: usize,
     popup: Vec<String>,
@@ -26,6 +22,7 @@ pub struct Repl {
 impl Repl {
     pub fn new() -> Self {
         Self {
+            quit: false,
             buffer: Vec::with_capacity(1024),
             buffer_cursor: 0,
             popup: Vec::with_capacity(128),
@@ -162,6 +159,43 @@ impl Default for Repl {
 }
 
 impl Repl {
+    fn on_key(&mut self, stdout: &mut RawTerminal<Stdout>, ctx: &mut Context<'_>, key: Key) {
+        match key {
+            Key::Char('\n') => {
+                write!(stdout, "\r\n").ok();
+                let take = self.take();
+                if &take == "quit" {
+                    self.quit = true;
+                    return;
+                }
+                match Parser::parse_string(&take).parse() {
+                    Ok(expr) => match expr.eval(ctx) {
+                        Ok(value) => print_value(&expr, value),
+                        Err(err) => print_eval_error(&expr, err),
+                    },
+                    Err(err) => print_error(err),
+                }
+            }
+            Key::Ctrl('a') | Key::Home => self.home(),
+            Key::Ctrl('e') | Key::End => self.end(),
+            Key::Ctrl('b') | Key::Left => self.left_char(),
+            Key::Ctrl('f') | Key::Right => self.right_char(),
+            Key::Ctrl('n') | Key::Down => self.down(),
+            Key::Ctrl('p') | Key::Up => self.up(),
+            Key::Ctrl('c') => {
+                write!(stdout, "^C\r\n").ok();
+                self.quit = true;
+            }
+            Key::Alt('b') => self.left_word(),
+            Key::Alt('f') => self.right_word(),
+            Key::Char(key) => {
+                self.insert_char(key);
+                self.popup.clear();
+            }
+            Key::Backspace => self.backspace(),
+            _ => {}
+        }
+    }
     pub fn start(&mut self, ctx: &mut Context<'_>) {
         // TODO: check if the stdin is tty
         // If it is not maybe switch to the old/simplified REPL
@@ -169,47 +203,22 @@ impl Repl {
         let mut stdout = io::stdout()
             .into_raw_mode()
             .expect("Failed to convert stdout into raw mode");
-        let stdin = io::stdin();
         write!(stdout, "{}", prompt).unwrap();
         stdout.flush().unwrap();
 
-        'loops: for key in stdin.keys() {
-            match key.unwrap() {
-                Key::Char('\n') => {
-                    write!(stdout, "\r\n").ok();
-                    let take = self.take();
-                    if &take == "quit" {
-                        break 'loops;
-                    }
-                    match Parser::parse_string(take).parse() {
-                        Ok(expr) => match expr.eval(ctx) {
-                            Ok(value) => print_value(&expr, value),
-                            Err(err) => print_eval_error(&expr, err),
-                        },
-                        Err(err) => print_error(err),
-                    }
-                }
-                Key::Ctrl('a') | Key::Home => self.home(),
-                Key::Ctrl('e') | Key::End => self.end(),
-                Key::Ctrl('b') | Key::Left => self.left_char(),
-                Key::Ctrl('f') | Key::Right => self.right_char(),
-                Key::Ctrl('n') | Key::Down => self.down(),
-                Key::Ctrl('p') | Key::Up => self.up(),
-                Key::Ctrl('c') => {
-                    write!(stdout, "^C\r\n").ok();
-                    break 'loops;
-                }
-                Key::Alt('b') => self.left_word(),
-                Key::Alt('f') => self.right_word(),
-                Key::Char(key) => {
-                    self.insert_char(key);
-                    self.popup.clear();
-                }
-                Key::Backspace => self.backspace(),
-                _ => {}
+        for event in io::stdin().events() {
+            match event {
+                Ok(Event::Key(key)) => self.on_key(&mut stdout, ctx, key),
+                Ok(Event::Mouse(_mouse)) => {}
+                Ok(_) => {}
+                Err(err) => print_error(From::from(err)),
             }
             self.render(prompt, &mut stdout).unwrap();
             stdout.flush().unwrap();
+
+            if self.quit {
+                break;
+            }
         }
     }
 }
@@ -219,6 +228,7 @@ pub fn print_error(err: RzError) {
         RzError::EvalError(err) => eprintln!("ERROR: {err}"),
         RzError::IoError(err) => eprintln!("ERROR: {err}"),
         RzError::Any(any) => eprintln!("ERROR: {any}"),
+        RzError::Utf8(err) => eprintln!("ERROR: {err}"),
     }
     eprintln!();
 }

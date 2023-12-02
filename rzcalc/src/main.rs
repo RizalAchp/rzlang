@@ -10,52 +10,6 @@ pub type Result<T> = ::std::result::Result<T, RzError>;
 const NAME: &str = env!("CARGO_PKG_NAME");
 const VERSION: &str = env!("CARGO_PKG_VERSION");
 
-fn exec_from_file(path: impl Into<PathBuf>, ctx: &mut Context<'_>) -> bool {
-    let path = path.into();
-    if !path.exists() {
-        eprintln!("path {} is not exists!", path.display());
-        return false;
-    }
-    match Parser::parse_file(path) {
-        Ok(parser) => match parser.parse() {
-            Ok(expr) => match expr.eval(ctx) {
-                Ok(value) => print_value(&expr, value),
-                Err(err) => {
-                    print_eval_error(&expr, err);
-                    return false;
-                }
-            },
-            Err(err) => {
-                print_error(err);
-                return false;
-            }
-        },
-        Err(err) => {
-            print_error(err);
-            return false;
-        }
-    }
-    true
-}
-
-fn exec_from_string(s: String, ctx: &mut Context<'_>) -> bool {
-    let parser = Parser::parse_string(s);
-    match parser.parse() {
-        Ok(expr) => match expr.eval(ctx) {
-            Ok(value) => print_value(&expr, value),
-            Err(err) => {
-                print_eval_error(&expr, err);
-                return false;
-            }
-        },
-        Err(err) => {
-            print_error(err);
-            return false;
-        }
-    }
-    true
-}
-
 fn main() {
     let mut args = std::env::args();
     let program = args
@@ -96,4 +50,60 @@ fn main() {
 
     let mut repl = Repl::new();
     repl.start(&mut ctx)
+}
+
+fn exec_from_file(path: impl Into<PathBuf>, ctx: &mut Context<'_>) -> bool {
+    let path = path.into();
+    if !path.exists() {
+        eprintln!("path {} is not exists!", path.display());
+        return false;
+    }
+    let content = match std::fs::read(&path) {
+        Ok(content) => content,
+        Err(err) => {
+            eprintln!(
+                "Failed to read content if file '{}' - {err}",
+                path.display()
+            );
+            return false;
+        }
+    };
+    match Parser::parse_bytes(&content) {
+        Ok(parser) => match parser.parse() {
+            Ok(expr) => match expr.eval(ctx) {
+                Ok(value) => print_value(&expr, value),
+                Err(err) => {
+                    print_eval_error(&expr, err);
+                    return false;
+                }
+            },
+            Err(err) => {
+                print_error(err);
+                return false;
+            }
+        },
+        Err(err) => {
+            print_error(err);
+            return false;
+        }
+    }
+    true
+}
+
+fn exec_from_string(s: String, ctx: &mut Context<'_>) -> bool {
+    let parser = Parser::parse_string(&s);
+    match parser.parse() {
+        Ok(expr) => match expr.eval(ctx) {
+            Ok(value) => print_value(&expr, value),
+            Err(err) => {
+                print_eval_error(&expr, err);
+                return false;
+            }
+        },
+        Err(err) => {
+            print_error(err);
+            return false;
+        }
+    }
+    true
 }

@@ -34,7 +34,7 @@ pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, 
         (Op::Add,     N(x), N(y)) => N(*x + *y),
         (Op::Sub,     N(x), N(y)) => N(*x - *y),
         (Op::Mul,     N(x), N(y)) => N(*x * *y),
-        (Op::Div,     N(x), N(y)) => N(*x / *y),
+        (Op::Div,     N(x), N(y)) => N(x.safe_div(*y)),
 
         (Op::Rem,     N(x), N(y)) => N(*x % *y),
         (Op::Shr,     N(x), N(y)) => N(*x >> *y),

@@ -4,21 +4,28 @@ pub struct CharStream<'s> {
     pub(super) row: usize,
     pub(super) col: usize,
     pub(super) index: usize,
-    pub(super) content: &'s str,
+    pub(super) content: String,
     pub(super) iter: Peekable<Chars<'s>>,
 }
 
 impl CharStream<'_> {
     pub const EOF: char = '\0';
 
-    pub fn new<'s>(string: &'s str) -> CharStream<'s> {
+    pub fn new<'s>(content: &'s str) -> CharStream<'s> {
+        let iter = content.chars().peekable();
+        let content = content.to_owned();
         CharStream::<'s> {
             row: 0,
             col: 0,
             index: 0,
-            content: string,
-            iter: string.chars().peekable(),
+            content,
+            iter,
         }
+    }
+
+    pub fn from_bytes<'s>(content: &'s [u8]) -> Result<CharStream<'s>, crate::RzError> {
+        let content = std::str::from_utf8(content)?;
+        Ok(CharStream::<'s>::new(content))
     }
 
     #[inline]
@@ -45,12 +52,16 @@ impl CharStream<'_> {
         }
     }
 
+    #[inline]
     pub fn col(&self) -> usize {
         self.col
     }
+    #[inline]
     pub fn row(&self) -> usize {
         self.row
     }
+
+    #[inline]
     pub fn current_line(&self) -> Rc<str> {
         let bol = self.index.saturating_sub(self.col);
         match self.content.get((bol + 1)..).and_then(|x| x.find('\n')) {
@@ -78,5 +89,12 @@ impl CharStream<'_> {
     #[inline]
     pub fn next_char(&mut self) -> char {
         self.gnext().unwrap_or(Self::EOF)
+    }
+}
+impl Iterator for CharStream<'_> {
+    type Item = char;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.gnext()
     }
 }
