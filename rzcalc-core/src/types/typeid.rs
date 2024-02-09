@@ -42,6 +42,9 @@ pub enum TypeId {
 }
 
 impl TypeId {
+    pub const fn is_none(&self) -> bool {
+        matches!(self, Self::None)
+    }
     pub const fn type_name(&self) -> &'static str {
         match self {
             TypeId::Bool => "boolean",

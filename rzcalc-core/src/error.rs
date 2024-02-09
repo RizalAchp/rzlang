@@ -1,25 +1,29 @@
-use core::str::Utf8Error;
+use core::{fmt, str::Utf8Error};
 use std::{fmt::Display, io};
 
-use crate::{EvalError, ParseError};
+use crate::{types::ValueError, EvalError, ParseError};
 
 #[derive(Debug)]
 pub enum RzError {
-    ParseError(ParseError),
-    EvalError(EvalError),
-    IoError(io::Error),
+    Io(io::Error),
+    Parse(ParseError),
+    Eval(EvalError),
+    Value(ValueError),
     Utf8(Utf8Error),
+    Fmt(fmt::Error),
     Any(String),
 }
 
 impl Display for RzError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            RzError::ParseError(err) => write!(f, "{err}"),
-            RzError::EvalError(err) => write!(f, "ERROR: {err}"),
-            RzError::IoError(err) => write!(f, "ERROR: {err}"),
-            RzError::Any(any) => write!(f, "ERROR: {any}"),
-            RzError::Utf8(err) => write!(f, "ERROR: {err}"),
+            RzError::Parse(err) => write!(f, "ERROR (ParseError): {err}"),
+            RzError::Eval(err) => write!(f, "ERROR (EvalError): {err}"),
+            RzError::Io(err) => write!(f, "ERROR (IoError): {err}"),
+            RzError::Utf8(err) => write!(f, "ERROR (Utf8Error): {err}"),
+            RzError::Value(err) => write!(f, "ERROR (ValueError): {err}"),
+            RzError::Any(err) => write!(f, "ERROR (AnyError): {err}"),
+            RzError::Fmt(err) => write!(f, "ERROR (FmtError): {err}"),
         }
     }
 }
@@ -34,10 +38,12 @@ macro_rules! impl_error {
     )*};
 }
 impl_error! {
-    ParseError => ParseError,
-    EvalError => EvalError,
+    ParseError => Parse,
+    EvalError => Eval,
+    ValueError => Value,
     Utf8Error => Utf8,
-    io::Error => IoError,
+    io::Error => Io,
+    fmt::Error => Fmt,
     String => Any,
 }
 

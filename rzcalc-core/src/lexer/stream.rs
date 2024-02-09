@@ -1,54 +1,40 @@
-use std::{iter::Peekable, rc::Rc, str::Chars};
+use std::{iter::Peekable, str::Chars};
 
 pub struct CharStream<'s> {
     pub(super) row: usize,
     pub(super) col: usize,
-    pub(super) index: usize,
-    pub(super) content: String,
+    pub(super) index: isize,
+    pub(super) content: &'s str,
     pub(super) iter: Peekable<Chars<'s>>,
 }
 
-impl CharStream<'_> {
+impl<'s> CharStream<'s> {
     pub const EOF: char = '\0';
 
-    pub fn new<'s>(content: &'s str) -> CharStream<'s> {
+    pub fn new(content: &'s str) -> Self {
         let iter = content.chars().peekable();
-        let content = content.to_owned();
         CharStream::<'s> {
             row: 0,
             col: 0,
-            index: 0,
+            index: -1,
             content,
             iter,
         }
     }
 
-    pub fn from_bytes<'s>(content: &'s [u8]) -> Result<CharStream<'s>, crate::RzError> {
-        let content = std::str::from_utf8(content)?;
-        Ok(CharStream::<'s>::new(content))
-    }
-
     #[inline]
-    pub fn gpeek(&mut self) -> Option<char> {
-        self.iter.peek().copied()
-    }
-
-    #[inline]
-    pub fn gnext(&mut self) -> Option<char> {
+    pub fn gnext(&mut self, c: char) -> Option<char> {
         self.index += 1;
-        match self.iter.next() {
-            Some(ok) => match ok {
-                '\n' => {
-                    self.row += 1;
-                    self.col = 0;
-                    Some(ok)
-                }
-                _ => {
-                    self.col += 1;
-                    Some(ok)
-                }
-            },
-            None => None,
+        match c {
+            '\n' => {
+                self.row += 1;
+                self.col = 0;
+                Some(c)
+            }
+            _ => {
+                self.col += 1;
+                Some(c)
+            }
         }
     }
 
@@ -61,40 +47,27 @@ impl CharStream<'_> {
         self.row
     }
 
-    #[inline]
-    pub fn current_line(&self) -> Rc<str> {
-        let bol = self.index.saturating_sub(self.col);
-        match self.content.get((bol + 1)..).and_then(|x| x.find('\n')) {
-            Some(eol) => Rc::from(&self.content[bol..eol]),
-            None => Rc::from(&self.content[bol..]),
-        }
+    #[inline(always)]
+    pub fn peek(&mut self) -> Option<&char> {
+        self.iter.peek()
     }
 
-    #[inline]
-    pub fn next_if<F>(&mut self, pred: F) -> Option<char>
-    where
-        F: FnOnce(char) -> bool,
-    {
-        if pred(self.gpeek()?) {
-            self.gnext()
-        } else {
-            None
-        }
-    }
-
-    #[inline]
-    pub fn peek_char(&mut self) -> char {
-        self.gpeek().unwrap_or(Self::EOF)
-    }
-    #[inline]
-    pub fn next_char(&mut self) -> char {
-        self.gnext().unwrap_or(Self::EOF)
+    pub fn get_string_when(&mut self, pred: impl FnOnce(&char) -> bool + Copy) -> &'s str {
+        let begin = self.index as usize;
+        while self
+            .iter
+            .next_if(pred)
+            .and_then(|x| self.gnext(x))
+            .is_some()
+        {}
+        &self.content[begin..=(self.index as usize)]
     }
 }
 impl Iterator for CharStream<'_> {
     type Item = char;
 
+    #[inline]
     fn next(&mut self) -> Option<Self::Item> {
-        self.gnext()
+        self.iter.next().and_then(|x| self.gnext(x))
     }
 }

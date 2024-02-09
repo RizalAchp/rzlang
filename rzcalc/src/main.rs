@@ -3,7 +3,7 @@ mod repl;
 
 use std::{path::PathBuf, process::exit};
 
-use repl::{print_error, print_eval_error, print_value, Repl};
+use repl::{print_error, print_value, Repl};
 use rzcalc_core::{self, builtin_context, Context, Eval, Parser, RzError};
 pub type Result<T> = ::std::result::Result<T, RzError>;
 
@@ -68,20 +68,8 @@ fn exec_from_file(path: impl Into<PathBuf>, ctx: &mut Context<'_>) -> bool {
             return false;
         }
     };
-    match Parser::parse_bytes(&content) {
-        Ok(parser) => match parser.parse() {
-            Ok(expr) => match expr.eval(ctx) {
-                Ok(value) => print_value(&expr, value),
-                Err(err) => {
-                    print_eval_error(&expr, err);
-                    return false;
-                }
-            },
-            Err(err) => {
-                print_error(err);
-                return false;
-            }
-        },
+    match Parser::parse_bytes(&content).and_then(|x| x.eval(ctx).map(|v| (x, v))) {
+        Ok((expr, value)) => print_value(&expr, value),
         Err(err) => {
             print_error(err);
             return false;
@@ -92,14 +80,8 @@ fn exec_from_file(path: impl Into<PathBuf>, ctx: &mut Context<'_>) -> bool {
 
 fn exec_from_string(s: String, ctx: &mut Context<'_>) -> bool {
     let parser = Parser::parse_string(&s);
-    match parser.parse() {
-        Ok(expr) => match expr.eval(ctx) {
-            Ok(value) => print_value(&expr, value),
-            Err(err) => {
-                print_eval_error(&expr, err);
-                return false;
-            }
-        },
+    match parser.and_then(|x| x.eval(ctx).map(|v| (x, v))) {
+        Ok((expr, v)) => print_value(&expr, v),
         Err(err) => {
             print_error(err);
             return false;

@@ -2,89 +2,83 @@ use std::cmp;
 use std::f64::{self, consts};
 
 use crate::types::{params, Number, Value, ValueError};
-use crate::{Context, EvalError};
+use crate::{Context, EvalError, TypeId};
 
 #[rustfmt::skip]
 #[allow(unused)]
 pub fn context() -> Context<'static> {
     let mut ctx = Context::new();
 
-    ctx.set_const("pi", consts::PI);
-    ctx.set_const("tau", consts::TAU);
-    ctx.set_const("e", consts::E);
-    ctx.set_const("nan", f64::NAN);
-    ctx.set_const("inf", f64::INFINITY);
-    ctx.set_const("neginf", f64::NEG_INFINITY);
+    ctx.set_const("PI", consts::PI);
+    ctx.set_const("TAU", consts::TAU);
+    ctx.set_const("E", consts::E);
+    ctx.set_const("NAN", f64::NAN);
+    ctx.set_const("INF", f64::INFINITY);
+    ctx.set_const("NEGINF", f64::NEG_INFINITY);
 
-    ctx.set_unary("asin",  &params!(num: Num), |x| Ok(x.get_num()?.asin().into()   ));
-    ctx.set_unary("acos",  &params!(num: Num), |x| Ok(x.get_num()?.acos().into()   ));
-    ctx.set_unary("atan",  &params!(num: Num), |x| Ok(x.get_num()?.atan().into()   ));
-    ctx.set_unary("sin",   &params!(num: Num), |x| Ok(x.get_num()?.sin().into()    ));
-    ctx.set_unary("cos",   &params!(num: Num), |x| Ok(x.get_num()?.cos().into()    ));
-    ctx.set_unary("tan",   &params!(num: Num), |x| Ok(x.get_num()?.tan().into()    ));
-    ctx.set_unary("ln",    &params!(num: Num), |x| Ok(x.get_num()?.ln().into()     ));
-    ctx.set_unary("log10", &params!(num: Num), |x| Ok(x.get_num()?.log10().into()  ));
-    ctx.set_unary("log2",  &params!(num: Num), |x| Ok(x.get_num()?.log2().into()   ));
-    ctx.set_unary("abs",   &params!(num: Num), |x| Ok(x.get_num()?.abs().into()    ));
-    ctx.set_unary("ceil",  &params!(num: Num), |x| Ok(x.get_num()?.ceil().into()   ));
-    ctx.set_unary("floor", &params!(num: Num), |x| Ok(x.get_num()?.floor().into()  ));
-    ctx.set_unary("round", &params!(num: Num), |x| Ok(x.get_num()?.round().into()  ));
-    ctx.set_unary("sqrt",  &params!(num: Num), |x| Ok(x.get_num()?.sqrt().into()   ));
-    ctx.set_unary("exp",   &params!(num: Num), |x| Ok(x.get_num()?.exp().into()    ));
-    ctx.set_unary("float", &params!(num: Num), |x| Ok(x.get_num()?.real().into()   ));
-    ctx.set_unary("sign",  &params!(num: Num), |x| Ok(x.get_num()?.signum().into() ));
+    ctx.set_func_with_args("asin",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.asin().into()   ));
+    ctx.set_func_with_args("acos",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.acos().into()   ));
+    ctx.set_func_with_args("atan",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.atan().into()   ));
+    ctx.set_func_with_args("sin",   &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.sin().into()    ));
+    ctx.set_func_with_args("cos",   &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.cos().into()    ));
+    ctx.set_func_with_args("tan",   &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.tan().into()    ));
+    ctx.set_func_with_args("ln",    &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.ln().into()     ));
+    ctx.set_func_with_args("log10", &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.log10().into()  ));
+    ctx.set_func_with_args("log2",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.log2().into()   ));
+    ctx.set_func_with_args("abs",   &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.abs().into()    ));
+    ctx.set_func_with_args("ceil",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.ceil().into()   ));
+    ctx.set_func_with_args("floor", &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.floor().into()  ));
+    ctx.set_func_with_args("round", &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.round().into()  ));
+    ctx.set_func_with_args("sqrt",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.sqrt().into()   ));
+    ctx.set_func_with_args("exp",   &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.exp().into()    ));
+    ctx.set_func_with_args("float", &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.real().into()   ));
+    ctx.set_func_with_args("sign",  &params!(num: Num), move |args, _| Ok(args.first().unwrap().get_num()?.signum().into() ));
 
-    ctx.set_binary("min_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.min(y.get_num()?).into()               ));
-    ctx.set_binary("max_num", &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.max(y.get_num()?).into()               ));
-    ctx.set_binary("powf",    &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powf(y.get_num()?).into()              ));
-    ctx.set_binary("pow",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.powi(y.get_num()?.int() as i32).into() ));
-    ctx.set_binary("log",     &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.log(y.get_num()?).into()               ));
-    ctx.set_binary("hypot",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.hypot(y.get_num()?).into()             ));
-    ctx.set_binary("atan2",   &params!(lhs: Num, rhs: Num), |x, y| Ok(x.get_num()?.atan2(y.get_num()?).into()             ));
+    ctx.set_func_with_args("min_num", &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.min(args[1].get_num()?).into()               ));
+    ctx.set_func_with_args("max_num", &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.max(args[1].get_num()?).into()               ));
+    ctx.set_func_with_args("powf",    &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.powf(args[1].get_num()?).into()              ));
+    ctx.set_func_with_args("pow",     &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.powi(args[1].get_num()?.int() as i32).into() ));
+    ctx.set_func_with_args("log",     &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.log(args[1].get_num()?).into()               ));
+    ctx.set_func_with_args("hypot",   &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.hypot(args[1].get_num()?).into()             ));
+    ctx.set_func_with_args("atan2",   &params!(lhs: Num, rhs: Num), move |args, _| Ok(args[0].get_num()?.atan2(args[1].get_num()?).into()             ));
 
     set_util(&mut ctx);
     ctx
 }
 
 fn set_util(ctx: &mut Context) {
-    for (key, ord) in &[
-        ("max", cmp::Ordering::Less),
-        ("min", cmp::Ordering::Greater),
-    ] {
-        let ord = *ord;
-        ctx.set_func(key, move |args, _| {
-            if args.is_empty() {
-                return Err(EvalError::any(format!(
-                    "calling funciton '{key}' with an empty sequence"
-                )));
-            }
+    ctx.set_func("max", move |args, _| {
+        if args.is_empty() {
+            return Err(From::from(EvalError::empty_arguments("max", TypeId::Any)));
+        }
+        let args = match args {
+            [Value::List(list)] => list,
+            x => x,
+        };
+        Ok(args
+            .iter()
+            .max_by(|x, y| x.partial_cmp(y).unwrap_or(cmp::Ordering::Equal))
+            .unwrap()
+            .clone())
+    });
 
-            let args = match args {
-                [Value::List(list)] => list,
-                x => x,
-            };
+    ctx.set_func("min", move |args, _| {
+        if args.is_empty() {
+            return Err(From::from(EvalError::empty_arguments("min", TypeId::Any)));
+        }
+        let args = match args {
+            [Value::List(list)] => list,
+            x => x,
+        };
+        Ok(args
+            .iter()
+            .min_by(|x, y| x.partial_cmp(y).unwrap_or(cmp::Ordering::Equal))
+            .unwrap()
+            .clone())
+    });
 
-            let mut best = args[0].clone();
-
-            for arg in args {
-                match best.partial_cmp(arg) {
-                    Some(x) if x == ord => best = arg.clone(),
-                    None => {
-                        return Err(EvalError::any(format!(
-                            "types '{}' and '{}' cannot be compared",
-                            best.type_id(),
-                            arg.type_id(),
-                        )))
-                    }
-                    _ => {}
-                }
-            }
-
-            Ok(best)
-        });
-    }
     ctx.set_func("rand", move |args, ctx| {
-        let a = args.get(0).map(Value::get_num).transpose()?;
+        let a = args.first().map(Value::get_num).transpose()?;
         let b = args.get(1).map(Value::get_num).transpose()?;
         let (start, end) = match (a, b) {
             (Some(x), Some(y)) => (x.int(), y.int()),
@@ -100,7 +94,7 @@ fn set_util(ctx: &mut Context) {
 
     ctx.set_func("range", |args, _| {
         use Number::Int as I;
-        let a = args.get(0).map(Value::get_num).transpose()?;
+        let a = args.first().map(Value::get_num).transpose()?;
         let b = args.get(1).map(Value::get_num).transpose()?;
         let step = args
             .get(2)
@@ -145,10 +139,10 @@ fn set_util(ctx: &mut Context) {
             let ubnd = args[1].get_num()?;
             let steps = args[2].get_num()?.int();
             if steps <= 2 {
-                return Err(EvalError::any(format!(
+                return Err(From::from(EvalError::any(format!(
                     "number of steps cannot be less than 2, got {}",
                     steps
-                )));
+                ))));
             }
 
             use Number::Real as R;
@@ -185,9 +179,9 @@ fn set_util(ctx: &mut Context) {
         ($($print:ident),*) => {$(
             ctx.set_func(stringify!($print), |args, _| {
                 if args.is_empty() {
-                    return Err(EvalError::any(
+                    return Err(From::from(EvalError::any(
                         concat!("no arguments provided, function '", stringify!($print), "' requires an argument")
-                    ));
+                    )));
                 }
                 let len = args.len();
                 for (i, arg) in args.iter().enumerate() {
@@ -201,11 +195,11 @@ fn set_util(ctx: &mut Context) {
 
     ctx.set_func("dbg", |args, _| {
         if args.is_empty() {
-            return Err(EvalError::any(concat!(
+            return Err(From::from(EvalError::any(concat!(
                 "no arguments provided, function '",
                 stringify!($print),
                 "' requires an argument"
-            )));
+            ))));
         }
         let len = args.len();
         for (i, arg) in args.iter().enumerate() {
@@ -259,6 +253,16 @@ fn set_util(ctx: &mut Context) {
             ))
         },
     );
+
+    ctx.set_func("help", |args, _ctx| {
+        use std::fmt::Write;
+
+        let mut out = String::new();
+        for arg in args {
+            write!(out, "{} {}", arg.type_name(), arg)?;
+        }
+        Ok(Value::Str(out.into()))
+    });
 
     //set_closure(ctx, "sum", |args| {
     //    check_args_n("sum", args, 1)?;

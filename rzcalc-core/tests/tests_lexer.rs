@@ -5,17 +5,17 @@ fn test_stream() {
     let line = "abc";
     let mut stream = CharStream::new(line);
 
-    assert_eq!(stream.peek_char(), 'a');
-    assert_eq!(stream.next_char(), 'a');
-    assert_eq!(stream.peek_char(), 'b');
-    assert_eq!(stream.next_char(), 'b');
-    assert_eq!(stream.peek_char(), 'c');
-    assert_eq!(stream.next_char(), 'c');
-    assert_eq!(stream.peek_char(), '\0');
-    assert_eq!(stream.next_char(), '\0');
+    assert_eq!(stream.peek(), Some(&'a'));
+    assert_eq!(stream.next(), Some('a'));
+    assert_eq!(stream.peek(), Some(&'b'));
+    assert_eq!(stream.next(), Some('b'));
+    assert_eq!(stream.peek(), Some(&'c'));
+    assert_eq!(stream.next(), Some('c'));
+    assert_eq!(stream.peek(), None);
+    assert_eq!(stream.next(), None);
 }
 
-fn test_match(string: &str, tokens: impl IntoIterator<Item = TokenType>) {
+fn test_match<'s>(string: &'s str, tokens: impl IntoIterator<Item = TokenType<'s>>) {
     let mut lexer = Lexer::from_string(string);
     for tok in tokens {
         assert_eq!(lexer.next_tok(), tok);
@@ -48,7 +48,7 @@ fn test_operators() {
         Op::Shl,
     ]
     .into_iter()
-    .map(TokenType::Operator);
+    .map(TokenType::Op);
 
     test_match(string, tokens);
 }
@@ -80,10 +80,10 @@ fn test_idents() {
         TokenType::If,
         TokenType::Then,
         TokenType::Else,
-        TokenType::Operator(Op::Or),
-        TokenType::Operator(Op::And),
-        TokenType::Operator(Op::Not),
-        TokenType::Ident("foo".into()),
+        TokenType::Op(Op::Or),
+        TokenType::Op(Op::And),
+        TokenType::Op(Op::Not),
+        TokenType::Ident("foo"),
     ];
 
     test_match(string, tokens);
@@ -93,17 +93,17 @@ fn test_idents() {
 fn test_numbers() {
     let string = "1 .2 3. 4.5 0x1A 0b1010 0o12 1e3 -2.5 6.022e23";
     let tokens = [
-        TokenType::Number("1".into()),
-        TokenType::Number(".2".into()),
-        TokenType::Number("3.".into()),
-        TokenType::Number("4.5".into()),
-        TokenType::Number("0x1A".into()),
-        TokenType::Number("0b1010".into()),
-        TokenType::Number("0o12".into()),
-        TokenType::Number("1e3".into()),
-        TokenType::Operator(Op::Sub),
-        TokenType::Number("2.5".into()),
-        TokenType::Number("6.022e23".into()),
+        TokenType::Number("1"),
+        TokenType::Number(".2"),
+        TokenType::Number("3."),
+        TokenType::Number("4.5"),
+        TokenType::Number("0x1A"),
+        TokenType::Number("0b1010"),
+        TokenType::Number("0o12"),
+        TokenType::Number("1e3"),
+        TokenType::Op(Op::Sub),
+        TokenType::Number("2.5"),
+        TokenType::Number("6.022e23"),
     ];
     test_match(string, tokens);
 }
@@ -112,9 +112,9 @@ fn test_numbers() {
 fn test_basic() {
     let string = "compare(a, ~)";
     let tokens = [
-        TokenType::Ident("compare".into()),
+        TokenType::Ident("compare"),
         TokenType::LeftParen,
-        TokenType::Ident("a".into()),
+        TokenType::Ident("a"),
         TokenType::Comma,
         TokenType::Unknown('~'),
         TokenType::RightParen,
@@ -128,9 +128,9 @@ fn test_prev_peek_next() {
     let string = "a b c";
     let mut lexer = Lexer::from_string(string);
 
-    let a = TokenType::Ident("a".into());
-    let b = TokenType::Ident("b".into());
-    let c = TokenType::Ident("c".into());
+    let a = TokenType::Ident("a");
+    let b = TokenType::Ident("b");
+    let c = TokenType::Ident("c");
 
     assert_eq!(lexer.peek_tok(), a);
     assert_eq!(lexer.next_tok(), a);

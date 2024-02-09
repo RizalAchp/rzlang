@@ -31,6 +31,10 @@ pub enum EvalErrorKind {
         nargs: usize,
         len_args: usize,
     },
+    EmptyArguments {
+        name: Rc<str>,
+        argument: TpId,
+    },
     InvalidFunctionCallArgumentsType {
         name: &'static str,
         arg: &'static str,
@@ -42,7 +46,7 @@ pub enum EvalErrorKind {
     },
 
     StackOverFlow(usize),
-    ValueError(ValueError),
+    Value(ValueError),
 
     NotAllowed(String),
     Any(String),
@@ -100,6 +104,13 @@ impl EvalError {
             name: name.into(),
             nargs,
             len_args,
+        })
+    }
+
+    pub fn empty_arguments(name: impl Into<Rc<str>>, argument: TpId) -> Self {
+        Self::new(EvalErrorKind::EmptyArguments {
+            name: name.into(),
+            argument,
         })
     }
 
@@ -177,15 +188,19 @@ impl Display for EvalError {
             } => {
                 write!(f, "argument '{arg}' of function call '{name}' required to be type of <{required}>, but got type of <{got}>")
             }
-            EvalErrorKind::ValueError(err) => write!(f, "{err}"),
+            EvalErrorKind::Value(err) => write!(f, "{err}"),
             EvalErrorKind::NotAllowed(s) => write!(f, "{s}, is not allowed"),
             EvalErrorKind::Any(s) => write!(f, "{s}"),
+            EvalErrorKind::EmptyArguments { name, argument } => write!(
+                f,
+                "calling function '{name}' with 0 arguments, required atleast 1 '{argument}' argument"
+            ),
         }
     }
 }
 
 impl From<ValueError> for EvalError {
     fn from(value: ValueError) -> Self {
-        Self::new(EvalErrorKind::ValueError(value))
+        Self::new(EvalErrorKind::Value(value))
     }
 }

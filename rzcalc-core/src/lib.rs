@@ -14,7 +14,10 @@ pub use eval::{Eval, EvalError};
 pub use lexer::{CharStream, Lexer, Op, Token, TokenType};
 pub use loc::{Loc, Span};
 pub use parser::{Node, ParseError, Parser};
-pub use types::{BuiltinFunction, BuiltinFunctionWithParam, Callable, Function, TypeId, Value};
+pub use types::{
+    BuiltinFunction, BuiltinFunctionType, BuiltinFunctionWithParam, Callable, Function, TypeId,
+    Value,
+};
 
 macro_rules! bail {
     ($err:expr) => {

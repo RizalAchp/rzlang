@@ -2,9 +2,9 @@ use std::{cmp, f64::EPSILON, ops::Deref, rc::Rc};
 
 use itertools::chain;
 
-use crate::{bail, Context, EvalError, Function, Node, Op, Value};
+use crate::{bail, Context, EvalError, Function, Node, Op, RzError, Value};
 
-pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, EvalError> {
+pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, RzError> {
     use Value::Bool as B;
     use Value::List as L;
     use Value::Num as N;
@@ -51,13 +51,13 @@ pub(super) fn evaluate_binop(op: Op, lhs: &Value, rhs: &Value) -> Result<Value, 
         (Op::BitAnd,  B(x), B(y)) => B(*x & *y),
         (Op::BitXor,  B(x), B(y)) => B(*x ^ *y),
 
-        _ => bail!(EvalError::invalid_binary(op, lhs, rhs)),
+        _ => bail!(From::from(EvalError::invalid_binary(op, lhs, rhs))),
     };
 
     Ok(out)
 }
 
-pub(super) fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
+pub(super) fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, RzError> {
     use Value::Bool as B;
     use Value::Num as N;
 
@@ -65,7 +65,7 @@ pub(super) fn evaluate_monop(op: Op, arg: &Value) -> Result<Value, EvalError> {
         (Op::Add, N(x)) => N(*x),
         (Op::Sub, N(x)) => N(-*x),
         (Op::Not, x) => B(!x.as_bool()),
-        _ => bail!(EvalError::invalid_unary(op, arg)),
+        _ => bail!(From::from(EvalError::invalid_unary(op, arg))),
     };
 
     Ok(out)
@@ -75,28 +75,28 @@ pub(super) fn evaluate_apply(
     fun: impl AsRef<Value>,
     args: impl AsRef<[Value]>,
     ctx: &mut Context,
-) -> Result<Value, EvalError> {
+) -> Result<Value, RzError> {
     let fun = fun.as_ref();
     if let Value::Func(f) = fun {
         ctx.call(f.deref(), args.as_ref())
     } else {
-        bail!(EvalError::not_callable(fun))
+        bail!(From::from(EvalError::not_callable(fun)))
     }
 }
 
-pub(super) fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalError> {
+pub(super) fn evaluate_index(list: &Value, index: &Value) -> Result<Value, RzError> {
     match (list, index) {
         (Value::List(list), Value::Num(f)) => {
             let i = f.round().int() as usize;
             let n = list.len();
 
             if !f.is_finite() || (f.real() - i as f64).abs() > EPSILON {
-                bail!(EvalError::invalid_indexer(f.type_name()));
+                bail!(From::from(EvalError::invalid_indexer(f.type_name())));
             }
 
             match list.get(i) {
                 Some(v) => Ok(v.clone()),
-                _ => bail!(EvalError::index_out_of_bound(i, n)),
+                _ => bail!(From::from(EvalError::index_out_of_bound(i, n))),
             }
         }
         (list, Value::List(indices)) => {
@@ -108,8 +108,8 @@ pub(super) fn evaluate_index(list: &Value, index: &Value) -> Result<Value, EvalE
 
             Ok(Value::List(result.into()))
         }
-        (Value::List(_), x) => bail!(EvalError::invalid_indexer(x.type_name())),
-        (x, _) => bail!(EvalError::cannot_be_index(x)),
+        (Value::List(_), x) => bail!(From::from(EvalError::invalid_indexer(x.type_name()))),
+        (x, _) => bail!(From::from(EvalError::cannot_be_index(x))),
     }
 }
 
@@ -192,7 +192,7 @@ pub(super) fn evaluate_lambda(
     params: &[Rc<str>],
     body: &Node,
     ctx: &Context,
-) -> Result<Value, EvalError> {
+) -> Result<Value, RzError> {
     let fun = Function {
         name: name.map(|x| format!("user-defined {}", x).into()),
         params: params.to_owned(),

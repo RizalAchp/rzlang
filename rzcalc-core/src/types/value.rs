@@ -3,6 +3,8 @@ use std::fmt::Display;
 use std::rc::Rc;
 use std::{cmp, fmt};
 
+use crate::EvalError;
+
 use super::{Callable, Number, TypeId, ValueError};
 
 pub type Str = Rc<str>;
@@ -118,28 +120,40 @@ impl Value {
 
 #[allow(unused)]
 impl Value {
-    pub fn get_str(&self) -> Result<Str, ValueError> {
+    pub fn get_str(&self) -> Result<Str, EvalError> {
         match self {
             Self::Str(s) => Ok(s.clone()),
-            s => Err(ValueError::mismatch_type(s.type_id(), TypeId::Str)),
+            s => Err(EvalError::from(ValueError::mismatch_type(
+                s.type_id(),
+                TypeId::Str,
+            ))),
         }
     }
-    pub fn get_list(&self) -> Result<List, ValueError> {
+    pub fn get_list(&self) -> Result<List, EvalError> {
         match self {
             Self::List(l) => Ok(l.clone()),
-            s => Err(ValueError::mismatch_type(s.type_id(), TypeId::List)),
+            s => Err(EvalError::from(ValueError::mismatch_type(
+                s.type_id(),
+                TypeId::List,
+            ))),
         }
     }
-    pub fn get_func(&self) -> Result<Func, ValueError> {
+    pub fn get_func(&self) -> Result<Func, EvalError> {
         match self {
             Self::Func(f) => Ok(f.clone()),
-            s => Err(ValueError::mismatch_type(s.type_id(), TypeId::Func)),
+            s => Err(EvalError::from(ValueError::mismatch_type(
+                s.type_id(),
+                TypeId::Func,
+            ))),
         }
     }
-    pub fn get_num(&self) -> Result<Number, ValueError> {
+    pub fn get_num(&self) -> Result<Number, EvalError> {
         match self {
             Self::Num(n) => Ok(*n),
-            s => Err(ValueError::mismatch_type(s.type_id(), TypeId::Num)),
+            s => Err(EvalError::from(ValueError::mismatch_type(
+                s.type_id(),
+                TypeId::Num,
+            ))),
         }
     }
 }
@@ -152,7 +166,12 @@ impl Display for Value {
             Value::Str(s) => write!(f, "{s}"),
             Value::List(l) => write!(f, "{l:?}"),
             Value::Func(func) => {
-                write!(f, "<{}(...)>", func.name().unwrap_or("anonymous function"))
+                let name = func.name().unwrap_or("<anonymous>");
+                let args = func
+                    .param()
+                    .map(|vals| vals.iter().join(","))
+                    .unwrap_or_else(|| "...".to_owned());
+                write!(f, "function {name} ({args})")
             }
             Value::None => f.write_str("None"),
         }
@@ -162,18 +181,11 @@ impl Display for Value {
 impl fmt::Debug for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Value::Num(x) => write!(f, "{x:?}"),
-            Value::Bool(x) => write!(f, "{x:?}"),
-            Value::Str(x) => write!(f, "{x:?}"),
-            Value::List(x) => write!(f, "{x:#?}"),
-            Value::Func(x) => {
-                let name = x.name().unwrap_or("anonymous");
-                let args = x
-                    .param()
-                    .map(|vals| vals.iter().join(","))
-                    .unwrap_or_else(|| "...".to_owned());
-                write!(f, "function <{name} ({args})>")
-            }
+            Value::Num(x) => f.debug_map().entry(&"Num", &x).finish(),
+            Value::Bool(x) => f.debug_map().entry(&"Bool", &x).finish(),
+            Value::Str(x) => f.debug_map().entry(&"Str", &x).finish(),
+            Value::List(x) => f.debug_map().entry(&"List", &x).finish(),
+            Value::Func(x) => write!(f, "{x:?}"),
             Value::None => f.write_str("None"),
         }
     }

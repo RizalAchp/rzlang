@@ -3,21 +3,21 @@ mod evaluate;
 
 use std::rc::Rc;
 
-use crate::{bail, Context, Function, Node, Op, Value};
+use crate::{bail, Context, Function, Node, Op, RzError, Value};
 
-pub use error::{EvalError, EvalErrorKind};
+pub use error::EvalError;
 
 pub trait Eval {
-    fn eval(&self, ctx: &mut Context) -> Result<Value, EvalError>;
+    fn eval(&self, ctx: &mut Context) -> Result<Value, RzError>;
 }
 
 impl Eval for Node {
-    fn eval(&self, ctx: &mut Context) -> Result<Value, EvalError> {
+    fn eval(&self, ctx: &mut Context) -> Result<Value, RzError> {
         match self {
             Node::Immediate(val) => Ok(val.clone()),
             Node::VarDef(key, arg) => {
                 let val = arg.eval(ctx)?;
-                ctx.set(key, val.clone());
+                ctx.set(key.clone(), val.clone());
                 Ok(val)
             }
             Node::FunDef(var, params, body) => {
@@ -31,16 +31,16 @@ impl Eval for Node {
 
                 *cell.body.borrow_mut() = {
                     let mut child_ctx = Context::with_parent(ctx);
-                    child_ctx.set(var, fun.clone());
+                    child_ctx.set(var.clone(), fun.clone());
                     evaluate::bind_vars(body, params, &child_ctx)?
                 };
 
-                ctx.set(var, fun.clone());
+                ctx.set(var.clone(), fun.clone());
                 Ok(fun)
             }
             Node::Var(var) => match ctx.get(var) {
                 Some(val) => Ok(val),
-                None => bail!(EvalError::undefined_variable(var.clone())),
+                None => bail!(RzError::Eval(EvalError::undefined_variable(var.clone()))),
             },
             Node::BinOp(Op::And, lhs, rhs) => {
                 let x = lhs.eval(ctx)?;
@@ -89,9 +89,9 @@ impl Eval for Node {
                 let rhs = rhs.eval(ctx)?;
                 evaluate::evaluate_index(&lhs, &rhs)
             }
-            Node::Range(..) => bail!(EvalError::any(
+            Node::Range(..) => bail!(RzError::Eval(EvalError::any(
                 "Range syntax is only supported as list index"
-            )),
+            ))),
 
             Node::List(args) => {
                 let mut vals = vec![];

@@ -1,5 +1,5 @@
 //! In progress effort to implement a new cool REPL using termion and stuff
-use rzcalc_core::{Context, Eval, EvalError, Node, Parser, RzError, Value};
+use rzcalc_core::{Context, Eval, Node, Parser, RzError, Value};
 use std::io::{self, Stdout, Write};
 
 use termion::{
@@ -168,11 +168,8 @@ impl Repl {
                     self.quit = true;
                     return;
                 }
-                match Parser::parse_string(&take).parse() {
-                    Ok(expr) => match expr.eval(ctx) {
-                        Ok(value) => print_value(&expr, value),
-                        Err(err) => print_eval_error(&expr, err),
-                    },
+                match Parser::parse_string(&take).and_then(|x| x.eval(ctx).map(|v| (x, v))) {
+                    Ok((expr, value)) => print_value(&expr, value),
                     Err(err) => print_error(err),
                 }
             }
@@ -223,21 +220,8 @@ impl Repl {
     }
 }
 pub fn print_error(err: RzError) {
-    match err {
-        RzError::ParseError(err) => eprintln!("{}{err}", clear::UntilNewline),
-        RzError::EvalError(err) => eprintln!("ERROR: {err}"),
-        RzError::IoError(err) => eprintln!("ERROR: {err}"),
-        RzError::Any(any) => eprintln!("ERROR: {any}"),
-        RzError::Utf8(err) => eprintln!("ERROR: {err}"),
-    }
     eprintln!();
-}
-pub fn print_eval_error(expr: &Node, err: EvalError) {
-    eprintln!();
-    eprintln!(
-        "ERROR: on evaluate expr\r\n    => {}\r\n{err}",
-        HighlightedNode(expr)
-    );
+    eprintln!("{err}");
     eprintln!();
 }
 

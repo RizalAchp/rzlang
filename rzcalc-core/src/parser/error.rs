@@ -1,10 +1,10 @@
 use std::fmt::Display;
 
-use crate::{types::ParseNumberError, Loc, Span, Token, TokenType};
+use crate::{types::ParseNumberError, Loc};
 
 #[derive(Debug, Clone)]
 pub enum ParseErrorKind {
-    UnExpectedToken(TokenType, String),
+    UnExpectedToken(String, String),
     RequireIdentButGot(String),
     ParseNumber(ParseNumberError),
 }
@@ -19,55 +19,39 @@ impl ParseError {
     pub const fn new(loc: Loc, kind: ParseErrorKind) -> Self {
         Self { loc, kind }
     }
-    pub fn unexpected_token(tok: impl AsRef<Token>, desc: impl ToString) -> Self {
-        let tok = tok.as_ref();
+    pub fn unexpected_token(loc: Loc, tok: impl ToString, desc: impl ToString) -> Self {
         Self::new(
-            tok.loc.clone(),
-            ParseErrorKind::UnExpectedToken(tok.tok.clone(), desc.to_string()),
+            loc,
+            ParseErrorKind::UnExpectedToken(tok.to_string(), desc.to_string()),
         )
     }
     pub fn require_ident_but_got(loc: Loc, tok: impl ToString) -> Self {
         Self::new(loc, ParseErrorKind::RequireIdentButGot(tok.to_string()))
     }
-    pub fn parse_number(err: ParseNumberError, loc: impl AsRef<Loc>) -> Self {
-        Self::new(loc.as_ref().clone(), ParseErrorKind::ParseNumber(err))
+    pub fn parse_number(err: ParseNumberError, loc: &Loc) -> Self {
+        Self::new(*loc, ParseErrorKind::ParseNumber(err))
     }
 }
 
 pub type ParseResult<T> = ::std::result::Result<T, ParseError>;
 
 impl std::error::Error for ParseError {}
-impl Display for ParseError {
+impl Display for ParseErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let error_msg = match &self.kind {
+        match self {
             ParseErrorKind::UnExpectedToken(tok, desc) => {
-                format!("ERROR: unexpected token {tok} - {desc}")
+                write!(f, "unexpected token {tok} - {desc}")
             }
             ParseErrorKind::RequireIdentButGot(tok) => {
-                format!("ERROR: require ident but got '{tok}'")
+                write!(f, "require ident but got '{tok}'")
             }
-            ParseErrorKind::ParseNumber(err) => format!("ERROR: Failed to parse number - {err}"),
-        };
-        match &self.loc {
-            Loc::File {
-                path,
-                row,
-                span_col,
-            } => {
-                write!(f, "{}:{row}:{span_col}: {error_msg}", path.display())
-            }
-            Loc::Repl {
-                span_col: Span(start, end),
-                line,
-            } => {
-                let width = start + 2;
-                writeln!(
-                    f,
-                    "> {line}\r\n> {:>width$}{t}\r\n{error_msg}",
-                    ' ',
-                    t = "^".repeat(end - start)
-                )
-            }
+            ParseErrorKind::ParseNumber(err) => write!(f, "Failed to parse number - {err}"),
         }
+    }
+}
+impl Display for ParseError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let Loc { row, span_col } = self.loc;
+        write!(f, "{row}:{span_col}: {}", self.kind)
     }
 }

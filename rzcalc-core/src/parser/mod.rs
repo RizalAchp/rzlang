@@ -1,7 +1,6 @@
 mod error;
 mod node;
 
-use std::path::PathBuf;
 use std::rc::Rc;
 
 use crate::types::Number;
@@ -13,90 +12,78 @@ pub use node::Node;
 
 use error::ParseResult;
 
-pub struct Parser<'s> {
-    pub lexer: Lexer<'s>,
-    pub src: Option<PathBuf>,
-}
-impl<'s> Parser<'s> {
-    pub fn parse_string(s: &'s str) -> Self {
-        Self {
-            lexer: Lexer::from_string(s),
-            src: None,
-        }
+pub struct Parser;
+impl Parser {
+    pub fn parse_string(s: &str) -> Result<Node, RzError> {
+        let mut lexer = Lexer::from_string(s);
+        Self::parse_statement(&mut lexer).map_err(From::from)
     }
-    pub fn parse_bytes(s: &'s [u8]) -> Result<Self, crate::RzError> {
-        Ok(Self {
-            lexer: Lexer::from_bytes(s)?,
-            src: None,
-        })
-    }
-    pub fn parse(mut self) -> Result<Node, RzError> {
-        self.parse_statement().map_err(From::from)
+    pub fn parse_bytes(s: &[u8]) -> Result<Node, RzError> {
+        let mut lexer = Lexer::from_bytes(s)?;
+        Self::parse_statement(&mut lexer).map_err(From::from)
     }
 }
 
 macro_rules! unexpected_prev_token {
-    ($self:ident, $($desc:tt)*) => {{
-        $self.lexer.prev_tok();
-        bail!(ParseError::unexpected_token(
-            $self.lexer.get_peek().cloned().unwrap_or_default(),
-            format!($($desc)*)
-        ))
+    ($l:expr, $($desc:tt)*) => {{
+        $l.prev_tok();
+        let p = $l.get_peek().cloned().unwrap_or_default();
+        bail!(ParseError::unexpected_token(p.loc, p.tok, format!($($desc)*)))
     }};
 }
 macro_rules! required_ident {
-    ($self:ident, $got:expr) => {{
-        $self.lexer.prev_tok();
+    ($l:expr, $got:expr) => {{
+        $l.prev_tok();
         bail!(ParseError::require_ident_but_got(
-            $self.lexer.loc_tok().clone(),
+            $l.loc_tok().clone(),
             $got,
         ))
     }};
 }
 
-impl Parser<'_> {
+impl Parser {
     #[inline]
-    fn expect_token<D>(&mut self, token: &Tok, default: D) -> ParseResult<D> {
-        if self.lexer.next_tok() != *token {
-            unexpected_prev_token!(self, "expected token '{token}'");
+    fn expect_token<D>(lex: &mut Lexer, token: &Tok, default: D) -> ParseResult<D> {
+        if lex.next_tok() != *token {
+            unexpected_prev_token!(lex, "expected token '{token}'");
         }
         Ok(default)
     }
 
-    fn parse_list(&mut self, closing: &Tok) -> ParseResult<Vec<Node>> {
+    fn parse_list(lex: &mut Lexer, closing: &Tok) -> ParseResult<Vec<Node>> {
         let mut args = vec![];
 
-        while self.lexer.peek_tok() != *closing {
-            args.push(self.parse_expr()?);
-            if self.lexer.peek_tok() == Tok::Comma {
-                self.lexer.next_tok();
+        while lex.peek_tok() != *closing {
+            args.push(Self::parse_expr(lex)?);
+            if lex.peek_tok() == Tok::Comma {
+                lex.next_tok();
             } else {
                 break;
             }
         }
-        self.expect_token(closing, args)
+        Self::expect_token(lex, closing, args)
     }
 
-    fn parse_primitive(&mut self) -> ParseResult<Node> {
-        let out = match self.lexer.next_tok() {
+    fn parse_primitive(lex: &mut Lexer) -> ParseResult<Node> {
+        let out = match lex.next_tok() {
             Tok::True => Node::Immediate(Value::Bool(true)),
             Tok::False => Node::Immediate(Value::Bool(false)),
-            Tok::Ident(name) => Node::Var(name),
+            Tok::Ident(name) => Node::Var(name.into()),
             Tok::Number(num) => match num.parse::<Number>() {
                 Ok(num) => Node::Immediate(Value::Num(num)),
-                Err(err) => return Err(ParseError::parse_number(err, self.lexer.loc_tok())),
+                Err(err) => return Err(ParseError::parse_number(err, lex.loc_tok())),
             },
-            Tok::Str(s) => Node::Immediate(Value::Str(s)),
+            Tok::Str(s) => Node::Immediate(Value::Str(s.into())),
             Tok::LeftParen => {
-                let expr = self.parse_expr()?;
-                self.expect_token(&Tok::RightParen, expr)?
+                let expr = Self::parse_expr(lex)?;
+                Self::expect_token(lex, &Tok::RightParen, expr)?
             }
             Tok::LeftBracket => {
-                let args = self.parse_list(&Tok::RightBracket)?;
+                let args = Self::parse_list(lex, &Tok::RightBracket)?;
                 Node::List(args)
             }
             _ => unexpected_prev_token!(
-                self,
+                lex,
                 "expected primitive type like [boolean, number, string, or list]"
             ),
         };
@@ -104,24 +91,25 @@ impl Parser<'_> {
         Ok(out)
     }
 
-    fn parse_apply(&mut self) -> ParseResult<Node> {
-        let mut out = self.parse_primitive()?;
+    fn parse_apply(lex: &mut Lexer) -> ParseResult<Node> {
+        let mut out = Self::parse_primitive(lex)?;
 
         loop {
-            out = match self.lexer.next_tok() {
+            out = match lex.next_tok() {
                 Tok::LeftParen => {
-                    let args = self.parse_list(&Tok::RightParen)?;
+                    let args = Self::parse_list(lex, &Tok::RightParen)?;
                     Node::Apply(Rc::new(out), args)
                 }
                 Tok::LeftBracket => {
-                    let index = self.parse_expr()?;
-                    self.expect_token(
+                    let index = Self::parse_expr(lex)?;
+                    Self::expect_token(
+                        lex,
                         &Tok::RightBracket,
                         Node::Index(Rc::new(out), Rc::new(index)),
                     )?
                 }
                 _ => {
-                    self.lexer.prev_tok();
+                    lex.prev_tok();
                     break;
                 }
             }
@@ -130,25 +118,24 @@ impl Parser<'_> {
         Ok(out)
     }
 
-    fn parse_monop(&mut self) -> ParseResult<Node> {
-        if let Tok::Operator(op) = self.lexer.peek_tok() {
+    fn parse_monop(lex: &mut Lexer) -> ParseResult<Node> {
+        if let Tok::Op(op) = lex.peek_tok() {
             if op == Op::Add || op == Op::Sub || op == Op::Not {
-                self.lexer.next_tok();
-                let arg = self.parse_monop()?;
+                lex.next_tok();
+                let arg = Self::parse_monop(lex)?;
                 return Ok(Node::MonOp(op, Rc::new(arg)));
             }
         }
-        self.parse_apply()
+        Self::parse_apply(lex)
     }
 
-    fn parse_binop(&mut self, prec: i8) -> ParseResult<Node> {
-        let mut lhs = self.parse_monop()?;
-
+    fn parse_binop(lex: &mut Lexer, prec: i8) -> ParseResult<Node> {
+        let mut lhs = Self::parse_monop(lex)?;
         loop {
-            match self.lexer.peek_tok() {
-                Tok::Operator(op) if prec <= op.prec() => {
-                    self.lexer.next_tok();
-                    let rhs = self.parse_binop(op.prec() + 1)?;
+            match lex.peek_tok() {
+                Tok::Op(op) if prec <= op.prec() => {
+                    lex.next_tok();
+                    let rhs = Self::parse_binop(lex, op.prec() + 1)?;
                     lhs = Node::BinOp(op, Rc::new(lhs), Rc::new(rhs));
                 }
                 _ => break Ok(lhs),
@@ -156,89 +143,86 @@ impl Parser<'_> {
         }
     }
 
-    fn parse_cond(&mut self) -> ParseResult<Node> {
-        let mut lhs = self.parse_binop(0)?;
+    fn parse_cond(lex: &mut Lexer) -> ParseResult<Node> {
+        let mut lhs = Self::parse_binop(lex, 0)?;
 
         loop {
-            if self.lexer.next_tok() != Tok::If {
-                self.lexer.prev_tok();
+            if lex.next_tok() != Tok::If {
+                lex.prev_tok();
                 break Ok(lhs);
             }
 
-            let cond = self.parse_expr()?;
-            self.expect_token(&Tok::Else, ())?;
-            let rhs = self.parse_expr()?;
+            let cond = Self::parse_expr(lex)?;
+            Self::expect_token(lex, &Tok::Else, ())?;
+            let rhs = Self::parse_expr(lex)?;
             lhs = Node::Cond(Rc::new(cond), Rc::new(lhs), Rc::new(rhs));
         }
     }
 
-    fn parse_expr(&mut self) -> ParseResult<Node> {
-        let out = match (
-            self.lexer.next_tok(),
-            self.lexer.next_tok(),
-            self.lexer.next_tok(),
-            self.lexer.next_tok(),
-        ) {
+    fn parse_expr(lex: &mut Lexer<'_>) -> ParseResult<Node> {
+        let a = lex.next_tok();
+        let b = lex.next_tok();
+        let c = lex.next_tok();
+        let d = lex.next_tok();
+        match (a, b, c, d) {
             // Case 1: x => body
             (Tok::Ident(x), Tok::Arrow, _, _) => {
-                self.lexer.prev_tok();
-                self.lexer.prev_tok();
-                let args = vec![x];
-                let body = self.parse_expr()?;
-                Node::Lambda(args, Rc::new(body))
+                let args = vec![x.into()];
+                lex.prev_tok();
+                lex.prev_tok();
+                let body = Self::parse_expr(lex)?;
+                Ok(Node::Lambda(args, Rc::new(body)))
             }
             // Case 2: () => body
             (Tok::LeftParen, Tok::RightParen, Tok::Arrow, _) => {
-                self.lexer.prev_tok();
                 let args = vec![];
-                let body = self.parse_expr()?;
-                Node::Lambda(args, Rc::new(body))
+                lex.prev_tok();
+                let body = Self::parse_expr(lex)?;
+                Ok(Node::Lambda(args, Rc::new(body)))
             }
             // Case 3: (x) => body
             (Tok::LeftParen, Tok::Ident(x), Tok::RightParen, Tok::Arrow) => {
-                let args = vec![x];
-                let body = self.parse_expr()?;
-                Node::Lambda(args, Rc::new(body))
+                let args = vec![x.into()];
+                let body = Self::parse_expr(lex)?;
+                Ok(Node::Lambda(args, Rc::new(body)))
             }
             // Case 4: (x, y, z) => body
             (Tok::LeftParen, Tok::Ident(x), Tok::Comma, Tok::Ident(y)) => {
-                let mut args = vec![x, y];
+                let mut args = vec![x.into(), y.into()];
                 loop {
-                    match self.lexer.next_tok() {
+                    match lex.next_tok() {
                         Tok::Comma => (),
                         Tok::RightParen => break,
-                        _ => unexpected_prev_token!(self, "expected comma or closing paren params"),
+                        _ => unexpected_prev_token!(lex, "expected comma or closing paren params"),
                     };
-                    match self.lexer.next_tok() {
-                        Tok::Ident(x) => args.push(x),
-                        _ => unexpected_prev_token!(self, "expected ident for params"),
+                    match lex.next_tok() {
+                        Tok::Ident(x) => args.push(x.into()),
+                        _ => unexpected_prev_token!(lex, "expected ident for params"),
                     }
                 }
-                if self.lexer.next_tok() != Tok::Arrow {
-                    unexpected_prev_token!(self, "expected an '=>' (arrow) after definition");
+                if lex.next_tok() != Tok::Arrow {
+                    unexpected_prev_token!(lex, "expected an '=>' (arrow) after definition");
                 }
-                let body = self.parse_expr()?;
-                Node::Lambda(args, Rc::new(body))
+                let body = Self::parse_expr(lex)?;
+                Ok(Node::Lambda(args, Rc::new(body)))
             }
             _ => {
-                self.lexer.prev_tok();
-                self.lexer.prev_tok();
-                self.lexer.prev_tok();
-                self.lexer.prev_tok();
-                self.parse_cond()?
+                lex.prev_tok();
+                lex.prev_tok();
+                lex.prev_tok();
+                lex.prev_tok();
+                Self::parse_cond(lex)
             }
-        };
-
-        Ok(out)
+        }
     }
 
-    fn parse_statement(&mut self) -> ParseResult<Node> {
-        let lhs = self.parse_expr()?;
+    fn parse_statement(lex: &mut Lexer<'_>) -> ParseResult<Node> {
+        let lhs = Self::parse_expr(lex)?;
 
-        Ok(match (lhs, self.lexer.next_tok()) {
+        Ok(match (lhs, lex.next_tok()) {
             (out, Tok::End) => out,
             (Node::Var(var), Tok::Assign) => {
-                let body = self.parse_statement()?;
+                let body = Self::parse_statement(lex)?;
                 match body {
                     Node::Lambda(args, body) => Node::FunDef(var, args, body),
                     body => Node::VarDef(var, Rc::new(body)),
@@ -247,20 +231,20 @@ impl Parser<'_> {
             (Node::Apply(lhs, args), Tok::Assign) => {
                 let var = match lhs.get_var() {
                     Some(var) => var,
-                    None => required_ident!(self, lhs),
+                    None => required_ident!(lex, lhs),
                 };
                 let mut params = vec![];
                 for arg in args {
                     if let Node::Var(name) = arg {
                         params.push(name);
                     } else {
-                        required_ident!(self, lhs)
+                        required_ident!(lex, lhs)
                     }
                 }
-                let body = self.parse_statement()?;
+                let body = Self::parse_statement(lex)?;
                 Node::FunDef(var, params, Rc::new(body))
             }
-            _ => unexpected_prev_token!(self, "expected statements"),
+            _ => unexpected_prev_token!(lex, "expected statements"),
         })
     }
 }

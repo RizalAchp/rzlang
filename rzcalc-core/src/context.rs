@@ -4,8 +4,8 @@ use nanorand::WyRand;
 
 use crate::{
     bail,
-    types::{BuiltinFunctionParams, TypeId},
-    BuiltinFunction, BuiltinFunctionWithParam, Callable, EvalError, Value,
+    types::{BuiltinFunctionParams, BuiltinFunctionType},
+    BuiltinFunction, BuiltinFunctionWithParam, Callable, EvalError, RzError, Value,
 };
 
 #[derive(Debug, Clone)]
@@ -66,13 +66,13 @@ impl<'a> Context<'a> {
         }
     }
 
-    pub fn set(&mut self, key: impl AsRef<str>, val: Value) {
-        self.scope.insert(key.as_ref().into(), val);
+    pub fn set(&mut self, key: impl Into<Rc<str>>, val: Value) {
+        self.scope.insert(key.into(), val);
     }
 
-    pub fn call(&mut self, fun: &dyn Callable, args: &[Value]) -> Result<Value, EvalError> {
+    pub fn call(&mut self, fun: &dyn Callable, args: &[Value]) -> Result<Value, RzError> {
         if self.stack.len() >= self.stack_size {
-            bail!(EvalError::stack_overflow(self.stack_size));
+            bail!(From::from(EvalError::stack_overflow(self.stack_size)));
         }
 
         let name = fun.name().unwrap_or("anonymous function").into();
@@ -96,46 +96,19 @@ impl<'a> Context<'a> {
         self.set(key, val.into())
     }
 
-    pub fn set_func_with_args<F>(&mut self, key: &'static str, args: BuiltinFunctionParams, fun: F)
-    where
-        F: 'static,
-        F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
-    {
+    pub fn set_func_with_args(
+        &mut self,
+        key: &'static str,
+        args: BuiltinFunctionParams,
+        fun: BuiltinFunctionType,
+    ) {
         self.set(
             key,
-            Value::Func(Rc::new(BuiltinFunctionWithParam::<F>::new(key, args, fun))),
+            Value::Func(Rc::new(BuiltinFunctionWithParam::new(key, args, fun))),
         );
     }
-    pub fn set_func<F>(&mut self, key: &'static str, fun: F)
-    where
-        F: 'static,
-        F: Fn(&[Value], &mut Context) -> Result<Value, EvalError>,
-    {
+    pub fn set_func(&mut self, key: &'static str, fun: BuiltinFunctionType) {
         self.set(key, Value::Func(Rc::new(BuiltinFunction(key, fun))))
-    }
-
-    pub fn set_unary<F>(
-        &mut self,
-        key: &'static str,
-        args: &'static [(&'static str, TypeId); 1],
-        func: F,
-    ) where
-        F: 'static,
-        F: Fn(&Value) -> Result<Value, EvalError>,
-    {
-        self.set_func_with_args(key, args, move |args, ctx| func(&args[0]))
-    }
-
-    pub fn set_binary<F>(
-        &mut self,
-        key: &'static str,
-        args: &'static [(&'static str, TypeId); 2],
-        func: F,
-    ) where
-        F: 'static,
-        F: Fn(&Value, &Value) -> Result<Value, EvalError>,
-    {
-        self.set_func_with_args(key, args, move |args, ctx| func(&args[0], &args[1]))
     }
 }
 

@@ -1,9 +1,9 @@
-use std::{borrow::Cow, fmt::Display, rc::Rc};
+use std::fmt::Display;
 
 use crate::Loc;
 
 #[repr(i8)]
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
 pub enum Op {
     Not,
     And,
@@ -44,8 +44,8 @@ impl Op {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Clone)]
-pub enum TokenType {
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Clone, Copy, Hash)]
+pub enum TokenType<'s> {
     End,
     If,
     Then,
@@ -60,12 +60,12 @@ pub enum TokenType {
     Assign,
     Arrow,
     Colon,
-    Operator(Op),
+    Op(Op),
     Unknown(char),
-    Number(Rc<str>),
-    Str(Rc<str>),
-    Ident(Rc<str>),
-    Comment(Rc<str>),
+    Number(&'s str),
+    Str(&'s str),
+    Ident(&'s str),
+    Comment(&'s str),
 }
 
 impl Op {
@@ -99,63 +99,63 @@ impl Display for Op {
     }
 }
 
-impl TokenType {
-    pub fn name(&self) -> Cow<'static, str> {
+impl<'s> TokenType<'s> {
+    pub fn name(&self) -> String {
         match self {
-            TokenType::LeftBracket => "[".into(),
-            TokenType::RightBracket => "]".into(),
-            TokenType::LeftParen => "(".into(),
-            TokenType::RightParen => ")".into(),
-            TokenType::Comma => ",".into(),
-            TokenType::Assign => "=".into(),
-            TokenType::Arrow => "=>".into(),
-            TokenType::True => "true".into(),
-            TokenType::False => "false".into(),
-            TokenType::If => "if".into(),
-            TokenType::Then => "then".into(),
-            TokenType::Else => "else".into(),
-            TokenType::End => "<end>".into(),
-            TokenType::Colon => ":".into(),
-            TokenType::Number(x) => format!("<number: '{x}'>").into(),
-            TokenType::Ident(x) => format!("<ident: '{x}'>").into(),
-            TokenType::Operator(x) => format!("<operator: '{x}'>").into(),
-            TokenType::Unknown(c) => format!("<unknown token: '{c}'>").into(),
-            TokenType::Str(s) => format!("<literal string: '{s}'>").into(),
-            TokenType::Comment(s) => format!("<comment: '{s}'>").into(),
+            TokenType::LeftBracket => "[".to_owned(),
+            TokenType::RightBracket => "]".to_owned(),
+            TokenType::LeftParen => "(".to_owned(),
+            TokenType::RightParen => ")".to_owned(),
+            TokenType::Comma => ",".to_owned(),
+            TokenType::Assign => "=".to_owned(),
+            TokenType::Arrow => "=>".to_owned(),
+            TokenType::True => "true".to_owned(),
+            TokenType::False => "false".to_owned(),
+            TokenType::If => "if".to_owned(),
+            TokenType::Then => "then".to_owned(),
+            TokenType::Else => "else".to_owned(),
+            TokenType::End => "<end>".to_owned(),
+            TokenType::Colon => ":".to_owned(),
+            TokenType::Number(x) => format!("<number: '{x}'>"),
+            TokenType::Ident(x) => format!("<ident: '{x}'>"),
+            TokenType::Op(x) => format!("<operator: '{x}'>"),
+            TokenType::Unknown(c) => format!("<unknown token: '{c}'>"),
+            TokenType::Str(s) => format!("<literal string: '{s}'>"),
+            TokenType::Comment(s) => format!("<comment: '{s}'>"),
         }
     }
 }
 
-impl Display for TokenType {
+impl Display for TokenType<'_> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.name())
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Token {
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Token<'s> {
     pub loc: Loc,
-    pub tok: TokenType,
+    pub tok: TokenType<'s>,
 }
+
 #[inline]
-pub const fn token(tok: TokenType, loc: Loc) -> Token {
+pub const fn token(tok: TokenType<'_>, loc: Loc) -> Token<'_> {
     Token { tok, loc }
 }
 
-impl Default for Token {
+impl Default for Token<'_> {
     fn default() -> Self {
         Self {
-            loc: Loc::Repl {
-                span_col: crate::Span(0, 0),
-                line: "".into(),
-            },
+            loc: Loc::default(),
             tok: TokenType::End,
         }
     }
 }
-
-impl AsRef<Token> for Token {
-    fn as_ref(&self) -> &Token {
-        self
+impl Display for Token<'_> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Token")
+            .field("location", &self.loc)
+            .field("kind", &self.tok)
+            .finish()
     }
 }
