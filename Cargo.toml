@@ -11,6 +11,6 @@ readme = "./README.md"
 [workspace]
 resolver = "2"
 members = [
-    "rzcalc-core",
-    "rzcalc"
+    "rzlang-core",
+    "rzlang"
 ] 

@@ -1,5 +1,5 @@
 [package]
-name = "rzcalc"
+name = "rzlang"
 version = "0.1.0"
 edition = "2021"
 
@@ -7,5 +7,5 @@ edition = "2021"
 
 [dependencies]
 reedline = { version = "0.25.0", features = ["clipboard", "system_clipboard"] }
-rzcalc-core   = { path = "../rzcalc-core" }
+rzlang-core   = { path = "../rzlang-core" }
 termion = "2.0.3"
